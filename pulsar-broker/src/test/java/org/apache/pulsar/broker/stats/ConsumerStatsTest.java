@@ -24,6 +24,7 @@ import com.google.common.collect.Sets;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.client.admin.PulsarAdminException;
 import org.apache.pulsar.client.api.Consumer;
+import org.apache.pulsar.client.api.Message;
 import org.apache.pulsar.client.api.Producer;
 import org.apache.pulsar.client.api.ProducerConsumerBase;
 import org.apache.pulsar.client.api.PulsarClientException;
@@ -61,10 +62,11 @@ public class ConsumerStatsTest extends ProducerConsumerBase {
         super.internalCleanup();
     }
 
+
     @Test
-    public void testConsumerStatsOnZeroMaxUnackedMessagesPerConsumer() throws PulsarClientException, InterruptedException, PulsarAdminException {
+    public void testConsumerStatsOnZeroMaxUnackedMessagesPerConsumerExclusiveAndIndividualAck() throws PulsarClientException, InterruptedException, PulsarAdminException {
         Assert.assertEquals(pulsar.getConfiguration().getMaxUnackedMessagesPerConsumer(), 0);
-        final String topicName = "persistent://my-property/my-ns/testConsumerStatsOnZeroMaxUnackedMessagesPerConsumer";
+        final String topicName = "persistent://my-property/my-ns/testConsumerStatsOnUnackedMessagesNotAck";
 
         Consumer<byte[]> consumer = pulsarClient.newConsumer()
                 .topic(topicName)
@@ -100,6 +102,116 @@ public class ConsumerStatsTest extends ProducerConsumerBase {
 
         for (int i = 0; i < messages; i++) {
             consumer.acknowledge(consumer.receive());
+            received++;
+        }
+
+        Assert.assertEquals(received, messages);
+
+        // wait acknowledge send
+        Thread.sleep(2000);
+
+        stats = admin.topics().getStats(topicName);
+
+        Assert.assertFalse(stats.getSubscriptions().entrySet().iterator().next().getValue().getConsumers().get(0).isBlockedConsumerOnUnackedMsgs());
+        Assert.assertEquals(stats.getSubscriptions().entrySet().iterator().next().getValue().getConsumers().get(0).getUnackedMessages(), 0);
+    }
+
+
+    @Test
+    public void testConsumerStatsOnZeroMaxUnackedMessagesPerConsumerExclusiveAndCumulativeAck() throws PulsarClientException, InterruptedException, PulsarAdminException {
+        Assert.assertEquals(pulsar.getConfiguration().getMaxUnackedMessagesPerConsumer(), 0);
+        final String topicName = "persistent://my-property/my-ns/testConsumerStatsOnUnackedMessagesNotAck";
+
+        Consumer<byte[]> consumer = pulsarClient.newConsumer()
+                .topic(topicName)
+                .ackTimeout(1, TimeUnit.SECONDS)
+                .subscriptionName("sub")
+                .subscribe();
+
+        Producer<byte[]> producer = pulsarClient.newProducer()
+                .topic(topicName)
+                .create();
+
+        final int messages = 10;
+        for (int i = 0; i < messages; i++) {
+            producer.send(("message-" + i).getBytes());
+        }
+
+        int received = 0;
+        for (int i = 0; i < messages; i++) {
+            // don't ack messages here
+            consumer.receive();
+            received++;
+        }
+
+        Assert.assertEquals(received, messages);
+        received = 0;
+
+        TopicStats stats = admin.topics().getStats(topicName);
+        Assert.assertEquals(stats.getSubscriptions().size(), 1);
+        Assert.assertEquals(stats.getSubscriptions().entrySet().iterator().next().getValue().getConsumers().size(), 1);
+        Assert.assertFalse(stats.getSubscriptions().entrySet().iterator().next().getValue().getConsumers().get(0).isBlockedConsumerOnUnackedMsgs());
+        Assert.assertEquals(stats.getSubscriptions().entrySet().iterator().next().getValue().getConsumers().get(0).getUnackedMessages(), messages);
+
+        for (int i = 0; i < messages; i++) {
+            Message<byte[]> receive = consumer.receive();
+            if (i == messages - 1) {
+                consumer.acknowledgeCumulative(receive);
+            }
+            received++;
+        }
+
+        Assert.assertEquals(received, messages);
+
+        // wait acknowledge send
+        Thread.sleep(2000);
+
+        stats = admin.topics().getStats(topicName);
+
+        Assert.assertFalse(stats.getSubscriptions().entrySet().iterator().next().getValue().getConsumers().get(0).isBlockedConsumerOnUnackedMsgs());
+        Assert.assertEquals(stats.getSubscriptions().entrySet().iterator().next().getValue().getConsumers().get(0).getUnackedMessages(), 0);
+    }
+
+
+    @Test
+    public void testConsumerStatsOnUnackedMessages() throws PulsarClientException, InterruptedException, PulsarAdminException {
+        Assert.assertEquals(pulsar.getConfiguration().getMaxUnackedMessagesPerConsumer(), 0);
+        final String topicName = "persistent://my-property/my-ns/testConsumerStatsOnZeroMaxUnackedMessagesPerConsumer";
+
+        Consumer<byte[]> consumer = pulsarClient.newConsumer()
+                .topic(topicName)
+                .ackTimeout(1, TimeUnit.SECONDS)
+                .subscriptionName("sub")
+                .subscribe();
+
+        Producer<byte[]> producer = pulsarClient.newProducer()
+                .topic(topicName)
+                .create();
+
+        final int messages = 10;
+        for (int i = 0; i < messages; i++) {
+            producer.send(("message-" + i).getBytes());
+        }
+
+        int received = 0;
+        for (int i = 0; i < messages; i++) {
+            // don't ack messages here
+            consumer.receive();
+            received++;
+        }
+
+        Assert.assertEquals(received, messages);
+        received = 0;
+
+        TopicStats stats = admin.topics().getStats(topicName);
+        Assert.assertEquals(stats.getSubscriptions().size(), 1);
+        Assert.assertEquals(stats.getSubscriptions().entrySet().iterator().next().getValue().getConsumers().size(), 1);
+        Assert.assertFalse(stats.getSubscriptions().entrySet().iterator().next().getValue().getConsumers().get(0).isBlockedConsumerOnUnackedMsgs());
+        Assert.assertEquals(stats.getSubscriptions().entrySet().iterator().next().getValue().getConsumers().get(0).getUnackedMessages(), messages);
+
+        for (int i = 0; i < messages; i++) {
+            Message<byte[]> receive = consumer.receive();
+            consumer.acknowledge(receive);
             received++;
         }
 

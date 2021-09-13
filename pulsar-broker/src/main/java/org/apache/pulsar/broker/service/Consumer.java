@@ -174,12 +174,12 @@ public class Consumer {
         stats.setClientVersion(cnx.getClientVersion());
         stats.metadata = this.metadata;
 
-        if (Subscription.isIndividualAckMode(subType)) {
+//        if (Subscription.isIndividualAckMode(subType)) {
             this.pendingAcks = new ConcurrentLongLongPairHashMap(256, 1);
-        } else {
-            // We don't need to keep track of pending acks if the subscription is not shared
-            this.pendingAcks = null;
-        }
+//        } else {
+//            // We don't need to keep track of pending acks if the subscription is not shared
+//            this.pendingAcks = null;
+//        }
 
         this.clientAddress = cnx.clientSourceAddress();
     }
@@ -410,7 +410,7 @@ public class Consumer {
         subscription.acknowledgeMessage(positionsAcked, AckType.Individual, properties);
         CompletableFuture<Void> completableFuture = new CompletableFuture<>();
         completableFuture.complete(null);
-        if (isTransactionEnabled() && Subscription.isIndividualAckMode(subType)) {
+        if (isTransactionEnabled()) {
             completableFuture.whenComplete((v, e) -> positionsAcked.forEach(position -> {
                 //check if the position can remove from the consumer pending acks.
                 // the bit set is empty in pending ack handle.
@@ -484,7 +484,7 @@ public class Consumer {
     }
 
     private void checkCanRemovePendingAcksAndHandle(PositionImpl position, MessageIdData msgId) {
-        if (Subscription.isIndividualAckMode(subType) && msgId.getAckSetsCount() == 0) {
+        if (msgId.getAckSetsCount() == 0) {
             removePendingAcks(position);
         }
     }
