@@ -1,0 +1,11 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="standalone" type="Application" factoryName="Application">
+    <option name="MAIN_CLASS_NAME" value="org.apache.pulsar.PulsarStandaloneStarter" />
+    <module name="pulsar-broker" />
+    <option name="PROGRAM_PARAMETERS" value="--config conf/standalone.conf -nss -nfw " />
+    <option name="VM_PARAMETERS" value="-Dlog4j.configurationFile=conf/log4j2.yaml" />
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>
