@@ -146,6 +146,7 @@ public class MessageDeduplication {
             producerRemoved(k);
             highestSequencedPushed.put(k, v);
             highestSequencedPersisted.put(k, v);
+            inactiveProducers.put(k, System.currentTimeMillis());
         });
 
         // Replay all the entries and apply all the sequence ids updates
@@ -402,15 +403,16 @@ public class MessageDeduplication {
     }
 
     private void takeSnapshot(PositionImpl position) {
-        if (log.isDebugEnabled()) {
-            log.debug("[{}] Taking snapshot of sequence ids map", topic.getName());
-        }
+//        if (log.isDebugEnabled()) {
+            log.info("[{}] Taking snapshot of sequence ids map", topic.getName());
+//        }
         Map<String, Long> snapshot = new TreeMap<>();
         highestSequencedPersisted.forEach((producerName, sequenceId) -> {
             if (snapshot.size() < maxNumberOfProducers) {
                 snapshot.put(producerName, sequenceId);
             }
         });
+        log.info("highesSequencedPersistendSize " + highestSequencedPersisted.size());
 
         managedCursor.asyncMarkDelete(position, snapshot, new MarkDeleteCallback() {
             @Override
@@ -445,6 +447,7 @@ public class MessageDeduplication {
      */
     public synchronized void producerRemoved(String producerName) {
         // Producer is no-longer active
+        log.info("add purge produce: " + producerName);
         inactiveProducers.put(producerName, System.currentTimeMillis());
     }
 
@@ -455,19 +458,25 @@ public class MessageDeduplication {
         long minimumActiveTimestamp = System.currentTimeMillis() - TimeUnit.MINUTES
                 .toMillis(pulsar.getConfiguration().getBrokerDeduplicationProducerInactivityTimeoutMinutes());
 
+        log.info("start purge produce:  " + inactiveProducers.size() + " highestSequenceSize:" + highestSequencedPushed.size() + " " + highestSequencedPersisted.size());
         Iterator<java.util.Map.Entry<String, Long>> mapIterator = inactiveProducers.entrySet().iterator();
+        boolean inactive = false;
         while (mapIterator.hasNext()) {
             java.util.Map.Entry<String, Long> entry = mapIterator.next();
             String producerName = entry.getKey();
             long lastActiveTimestamp = entry.getValue();
 
-            mapIterator.remove();
 
             if (lastActiveTimestamp < minimumActiveTimestamp) {
                 log.info("[{}] Purging dedup information for producer {}", topic.getName(), producerName);
+                mapIterator.remove();
                 highestSequencedPushed.remove(producerName);
                 highestSequencedPersisted.remove(producerName);
+                inactive = true;
             }
+        }
+        if (inactive) {
+            takeSnapshot((PositionImpl) managedCursor.getMarkDeletedPosition());
         }
     }
 
@@ -477,18 +486,22 @@ public class MessageDeduplication {
     }
 
     public void takeSnapshot() {
-        Integer interval = topic.getHierarchyTopicPolicies().getDeduplicationSnapshotIntervalSeconds().get();
+        log.info("try trigger snapshot");
+        Integer interval = pulsar.getConfiguration().getBrokerDeduplicationSnapshotIntervalSeconds();
         long currentTimeStamp = System.currentTimeMillis();
         if (interval == null || interval <= 0
                 || currentTimeStamp - lastSnapshotTimestamp < TimeUnit.SECONDS.toMillis(interval)) {
+            log.info("return 0");
             return;
         }
         PositionImpl position = (PositionImpl) managedLedger.getLastConfirmedEntry();
         if (position == null) {
+            log.info("return 1");
             return;
         }
         PositionImpl markDeletedPosition = (PositionImpl) managedCursor.getMarkDeletedPosition();
         if (markDeletedPosition != null && position.compareTo(markDeletedPosition) <= 0) {
+            log.info("return 2");
             return;
         }
         takeSnapshot(position);

@@ -22,7 +22,7 @@ Configuration:
   status: INFO
   monitorInterval: 30
   name: pulsar
-  packages: io.prometheus.client.log4j2
+#  packages: io.prometheus.client.log4j2
 
   Properties:
     Property:
@@ -80,8 +80,8 @@ Configuration:
             IfLastModified:
               age: 30d
 
-    Prometheus:
-      name: Prometheus
+#    Prometheus:
+#      name: Prometheus
 
     # Routing
     Routing:
@@ -135,8 +135,8 @@ Configuration:
       AppenderRef:
         - ref: "${sys:pulsar.log.appender}"
           level: "${sys:pulsar.log.level}"
-        - ref: Prometheus
-          level: info
+#        - ref: Prometheus
+#          level: info
 
     Logger:
       - name: org.apache.bookkeeper.bookie.BookieShell
