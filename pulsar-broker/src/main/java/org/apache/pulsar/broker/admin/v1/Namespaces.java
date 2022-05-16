@@ -531,11 +531,18 @@ public class Namespaces extends NamespacesBase {
     @ApiOperation(value = "Get autoTopicCreation info in a namespace")
     @ApiResponses(value = {@ApiResponse(code = 403, message = "Don't have admin permission"),
             @ApiResponse(code = 404, message = "Tenant or cluster or namespace doesn't exist")})
-    public AutoTopicCreationOverride getAutoTopicCreation(@PathParam("property") String property,
-                                                          @PathParam("cluster") String cluster,
-                                                          @PathParam("namespace") String namespace) {
+    public void getAutoTopicCreation(@Suspended AsyncResponse asyncResponse,
+                                     @PathParam("property") String property,
+                                     @PathParam("cluster") String cluster,
+                                     @PathParam("namespace") String namespace) {
         validateNamespaceName(property, cluster, namespace);
-        return internalGetAutoTopicCreation();
+        internalGetAutoTopicCreationAsync()
+                .thenAccept(__ -> asyncResponse.resume(Response.ok().build()))
+                .exceptionally(ex -> {
+                    log.error("Fail get autoTopicCreation info for namespace {}", namespaceName, ex);
+                    resumeAsyncResponseExceptionally(asyncResponse, ex);
+                    return null;
+                });
     }
 
     @POST
