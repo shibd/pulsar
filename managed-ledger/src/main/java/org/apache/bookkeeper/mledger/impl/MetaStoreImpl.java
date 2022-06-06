@@ -96,6 +96,7 @@ public class MetaStoreImpl implements MetaStore {
             MetaStoreCallback<ManagedLedgerInfo> callback) {
         // Try to get the content or create an empty node
         String path = PREFIX + ledgerName;
+        System.out.println("------- read path: " + path);
         store.get(path)
                 .thenAcceptAsync(optResult -> {
                     if (optResult.isPresent()) {
@@ -132,7 +133,7 @@ public class MetaStoreImpl implements MetaStore {
                         } else {
                             // Tried to open a managed ledger but it doesn't exist and we shouldn't creating it at this
                             // point
-                            callback.operationFailed(new MetadataNotFoundException("Managed ledger not found"));
+                            callback.operationFailed(new MetadataNotFoundException("Managed ledger not found" + path));
                         }
                     }
                 }, executor.chooseThread(ledgerName))
