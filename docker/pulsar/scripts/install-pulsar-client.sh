@@ -23,3 +23,9 @@ set -x
 PYTHON_MAJOR_MINOR=$(python3 -V | sed -E 's/.* ([[:digit:]]+)\.([[:digit:]]+).*/\1\2/')
 WHEEL_FILE=$(ls /pulsar/pulsar-client | grep "cp${PYTHON_MAJOR_MINOR}")
 pip3 install /pulsar/pulsar-client/${WHEEL_FILE}[all]
+
+# The following `update build-essential python3-dev` are added due to grpcio `cc` not found error
+# TODO: remove these lines if the error got resolved.
+# WARNING: currently grpcio build takes long.
+apt-get update
+apt-get -y install build-essential python3-dev

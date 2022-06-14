@@ -40,8 +40,10 @@ RUN sed -i "s|http://archive\.ubuntu\.com/ubuntu/|${UBUNTU_MIRROR:-mirror://mirr
      && apt-get -y dist-upgrade \
      && apt-get -y install openjdk-11-jdk-headless
 
-ENV JAVA_HOME /usr/lib/jvm/java-11-openjdk-amd64
-RUN echo networkaddress.cache.ttl=1 >> /usr/lib/jvm/java-11-openjdk-amd64/conf/security/java.security
+RUN java_home=$(ls -d1 /usr/lib/jvm/java-11-openjdk-*) ; \
+    ln -s "$java_home" /usr/lib/jvm/java
+ENV JAVA_HOME /usr/lib/jvm/java
+RUN echo networkaddress.cache.ttl=1 >> /usr/lib/jvm/java/conf/security/java.security
 
 # /pulsar/bin/watch-znode.py requires python3-kazoo
 # /pulsar/bin/pulsar-managed-ledger-admin requires python3-protobuf

@@ -29,7 +29,8 @@ RUN apt-get install -y procps curl git build-essential
 
 ENV GOLANG_VERSION 1.13.3
 
-RUN curl -sSL https://golang.org/dl/go$GOLANG_VERSION.linux-amd64.tar.gz \
+RUN export arch=$(uname -m | sed -r 's/aarch64/arm64/g' |  awk '!/arm64/{$0="amd64"}1'); \
+curl -sSL https://golang.org/dl/go$GOLANG_VERSION.linux-$arch.tar.gz \
 		| tar -C /usr/local -xz
 
 # RUN wget https://dl.google.com/go/go1.13.3.linux-amd64.tar.gz && tar -xvf go1.13.3.linux-amd64.tar.gz && mv go /usr/local
