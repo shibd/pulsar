@@ -41,6 +41,7 @@ ProducerConfiguration& ProducerConfiguration::setProducerName(const std::string&
 }
 
 const std::string& ProducerConfiguration::getProducerName() const {
+    std::cout << "1234" << std::endl;
     return impl_->producerName.is_present() ? impl_->producerName.value() : emptyString;
 }
 

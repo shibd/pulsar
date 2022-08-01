@@ -36,7 +36,9 @@ ClientConfiguration& ClientConfiguration::setMemoryLimit(uint64_t memoryLimitByt
     return *this;
 }
 
-uint64_t ClientConfiguration::getMemoryLimit() const { return impl_->memoryLimit; }
+uint64_t ClientConfiguration::getMemoryLimit() const {
+    return impl_->memoryLimit;
+}
 
 ClientConfiguration& ClientConfiguration::setAuth(const AuthenticationPtr& authentication) {
     impl_->authenticationPtr = authentication;
