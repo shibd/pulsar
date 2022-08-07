@@ -54,6 +54,39 @@ MultiTopicsConsumerImpl::MultiTopicsConsumerImpl(ClientImplPtr client, const std
     }
 }
 
+MultiTopicsConsumerImpl::MultiTopicsConsumerImpl(ClientImplPtr client, const std::string singleTopic,
+                                                 const int numPartitions, const std::string& subscriptionName,
+                                                 TopicNamePtr topicName, const ConsumerConfiguration& conf,
+                                                 const LookupServicePtr lookupServicePtr)
+    : client_(client),
+      subscriptionName_(subscriptionName),
+      topic_(topicName ? topicName->toString() : "EmptyTopics"),
+      conf_(conf),
+      topicsPartitions_{{singleTopic, numPartitions}},
+      messages_(conf.getReceiverQueueSize()),
+      listenerExecutor_(client->getListenerExecutorProvider()->get()),
+      messageListener_(conf.getMessageListener()),
+      lookupServicePtr_(lookupServicePtr),
+      numberTopicPartitions_(std::make_shared<std::atomic<int>>(0)),
+      topics_({singleTopic}) {
+    std::stringstream consumerStrStream;
+    consumerStrStream << "[Muti Topics Consumer: "
+                      << "TopicName - " << topic_ << " - Subscription - " << subscriptionName << "]";
+    consumerStr_ = consumerStrStream.str();
+
+    if (conf.getUnAckedMessagesTimeoutMs() != 0) {
+        if (conf.getTickDurationInMs() > 0) {
+            unAckedMessageTrackerPtr_.reset(new UnAckedMessageTrackerEnabled(
+                conf.getUnAckedMessagesTimeoutMs(), conf.getTickDurationInMs(), client, *this));
+        } else {
+            unAckedMessageTrackerPtr_.reset(
+                new UnAckedMessageTrackerEnabled(conf.getUnAckedMessagesTimeoutMs(), client, *this));
+        }
+    } else {
+        unAckedMessageTrackerPtr_.reset(new UnAckedMessageTrackerDisabled());
+    }
+}
+
 void MultiTopicsConsumerImpl::start() {
     if (topics_.empty()) {
         MultiTopicsConsumerState state = Pending;
@@ -125,17 +158,24 @@ Future<Result, Consumer> MultiTopicsConsumerImpl::subscribeOneTopicAsync(const s
     }
 
     // subscribe for each partition, when all partitions completed, complete promise
-    lookupServicePtr_->getPartitionMetadataAsync(topicName).addListener(std::bind(
-        &MultiTopicsConsumerImpl::subscribeTopicPartitions, shared_from_this(), std::placeholders::_1,
-        std::placeholders::_2, topicName, subscriptionName_, conf_, topicPromise));
+    Lock lock(mutex_);
+    auto entry = topicsPartitions_.find(topic);
+    lock.unlock();
+    if (entry == topicsPartitions_.end()) {
+        lookupServicePtr_->getPartitionMetadataAsync(topicName).addListener(
+            [this, topicName, topicPromise](const Result result, const LookupDataResultPtr lookupDataResult) {
+                subscribeTopicPartitions(result, lookupDataResult->getPartitions(), topicName,
+                                         subscriptionName_, topicPromise);
+            });
+    } else {
+        subscribeTopicPartitions(ResultOk, entry->second, topicName, subscriptionName_, topicPromise);
+    }
     return topicPromise->getFuture();
 }
 
-void MultiTopicsConsumerImpl::subscribeTopicPartitions(const Result result,
-                                                       const LookupDataResultPtr partitionMetadata,
+void MultiTopicsConsumerImpl::subscribeTopicPartitions(const Result result, const int numPartitions,
                                                        TopicNamePtr topicName,
                                                        const std::string& consumerName,
-                                                       ConsumerConfiguration conf,
                                                        ConsumerSubResultPromisePtr topicSubResultPromise) {
     if (result != ResultOk) {
         LOG_ERROR("Error Checking/Getting Partition Metadata while MultiTopics Subscribing- "
@@ -151,7 +191,6 @@ void MultiTopicsConsumerImpl::subscribeTopicPartitions(const Result result,
     config.setMessageListener(std::bind(&MultiTopicsConsumerImpl::messageReceived, shared_from_this(),
                                         std::placeholders::_1, std::placeholders::_2));
 
-    int numPartitions = partitionMetadata->getPartitions();
     int partitions = numPartitions == 0 ? 1 : numPartitions;
 
     // Apply total limit of receiver queue size across partitions
