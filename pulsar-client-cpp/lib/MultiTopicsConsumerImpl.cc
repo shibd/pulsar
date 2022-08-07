@@ -17,6 +17,7 @@
  * under the License.
  */
 #include "MultiTopicsConsumerImpl.h"
+#include "MultiResultCallback.h"
 
 DECLARE_LOG_OBJECT()
 
@@ -164,26 +165,24 @@ Future<Result, Consumer> MultiTopicsConsumerImpl::subscribeOneTopicAsync(const s
     if (entry == topicsPartitions_.end()) {
         lookupServicePtr_->getPartitionMetadataAsync(topicName).addListener(
             [this, topicName, topicPromise](const Result result, const LookupDataResultPtr lookupDataResult) {
-                subscribeTopicPartitions(result, lookupDataResult->getPartitions(), topicName,
-                                         subscriptionName_, topicPromise);
+                if (result != ResultOk) {
+                    LOG_ERROR("Error Checking/Getting Partition Metadata while MultiTopics Subscribing- "
+                              << consumerStr_ << " result: " << result)
+                    topicPromise->setFailed(result);
+                    return;
+                }
+                subscribeTopicPartitions(lookupDataResult->getPartitions(), topicName, subscriptionName_,
+                                         topicPromise);
             });
     } else {
-        subscribeTopicPartitions(ResultOk, entry->second, topicName, subscriptionName_, topicPromise);
+        subscribeTopicPartitions(entry->second, topicName, subscriptionName_, topicPromise);
     }
     return topicPromise->getFuture();
 }
 
-void MultiTopicsConsumerImpl::subscribeTopicPartitions(const Result result, const int numPartitions,
-                                                       TopicNamePtr topicName,
+void MultiTopicsConsumerImpl::subscribeTopicPartitions(const int numPartitions, TopicNamePtr topicName,
                                                        const std::string& consumerName,
                                                        ConsumerSubResultPromisePtr topicSubResultPromise) {
-    if (result != ResultOk) {
-        LOG_ERROR("Error Checking/Getting Partition Metadata while MultiTopics Subscribing- "
-                  << consumerStr_ << " result: " << result)
-        topicSubResultPromise->setFailed(result);
-        return;
-    }
-
     std::shared_ptr<ConsumerImpl> consumer;
     ConsumerConfiguration config = conf_.clone();
     ExecutorServicePtr internalListenerExecutor = client_->getPartitionListenerExecutorProvider()->get();
@@ -723,7 +722,19 @@ void MultiTopicsConsumerImpl::seekAsync(const MessageId& msgId, ResultCallback c
 }
 
 void MultiTopicsConsumerImpl::seekAsync(uint64_t timestamp, ResultCallback callback) {
-    callback(ResultOperationNotSupported);
+    Lock stateLock(mutex_);
+    if (state_ != Ready) {
+        stateLock.unlock();
+        callback(ResultAlreadyClosed);
+        return;
+    }
+    // consumers_ could only be modified when state_ is Ready, so we needn't lock consumersMutex_ here
+    stateLock.unlock();
+
+    MultiResultCallback multiResultCallback(callback, consumers_.size());
+    consumers_.forEachValue([&timestamp, &multiResultCallback](ConsumerImplPtr consumer) {
+        consumer->seekAsync(timestamp, multiResultCallback);
+    });
 }
 
 void MultiTopicsConsumerImpl::setNegativeAcknowledgeEnabledForTesting(bool enabled) {

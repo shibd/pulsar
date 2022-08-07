@@ -125,7 +125,7 @@ class MultiTopicsConsumerImpl : public ConsumerImplBase,
 
     void handleOneTopicSubscribed(Result result, Consumer consumer, const std::string& topic,
                                   std::shared_ptr<std::atomic<int>> topicsNeedCreate);
-    void subscribeTopicPartitions(const Result result, const int numPartitions, TopicNamePtr topicName,
+    void subscribeTopicPartitions(const int numPartitions, TopicNamePtr topicName,
                                   const std::string& consumerName,
                                   ConsumerSubResultPromisePtr topicSubResultPromise);
     void handleSingleConsumerCreated(Result result, ConsumerImplBaseWeakPtr consumerImplBaseWeakPtr,
