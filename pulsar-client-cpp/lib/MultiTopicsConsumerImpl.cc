@@ -404,13 +404,12 @@ void MultiTopicsConsumerImpl::closeAsync(ResultCallback callback) {
 
     auto self = shared_from_this();
     int numConsumers = 0;
-    consumers_.forEach(
-        [&numConsumers, &self, callback](const std::string& name, const ConsumerImplPtr& consumer) {
-            numConsumers++;
-            consumer->closeAsync([self, name, callback](Result result) {
-                self->handleSingleConsumerClose(result, name, callback);
-            });
+    for (const auto& item : consumers_.toPairVector()) {
+        numConsumers++;
+        item.second->closeAsync([self, item, callback](Result result) {
+            self->handleSingleConsumerClose(result, item.first, callback);
         });
+    }
     if (numConsumers == 0) {
         LOG_DEBUG("TopicsConsumer have no consumers to close "
                   << " topic" << topic_ << " subscription - " << subscriptionName_);
@@ -452,8 +451,9 @@ void MultiTopicsConsumerImpl::handleSingleConsumerClose(Result result, std::stri
             state_ = Closed;
         }
 
-        multiTopicsConsumerCreatedPromise_.setFailed(ResultUnknownError);
+        // if call back is null, on behalf of the caller will return the status by itself.
         if (callback) {
+            multiTopicsConsumerCreatedPromise_.setFailed(ResultUnknownError);
             callback(result);
         }
         return;
