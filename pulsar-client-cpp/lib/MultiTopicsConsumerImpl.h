@@ -52,10 +52,13 @@ class MultiTopicsConsumerImpl : public ConsumerImplBase,
     MultiTopicsConsumerImpl(ClientImplPtr client, const std::vector<std::string>& topics,
                             const std::string& subscriptionName, TopicNamePtr topicName,
                             const ConsumerConfiguration& conf, const LookupServicePtr lookupServicePtr_);
-    MultiTopicsConsumerImpl(ClientImplPtr client, const std::string singleTopic, const int numPartitions,
-                            const std::string& subscriptionName, TopicNamePtr topicName,
-                            const ConsumerConfiguration& conf, const LookupServicePtr lookupServicePtr);
     ~MultiTopicsConsumerImpl();
+    static ConsumerImplBasePtr createPartitionedConsumer(ClientImplPtr client, const std::string singleTopic,
+                                                         const int numPartitions,
+                                                         const std::string& subscriptionName,
+                                                         TopicNamePtr topicName,
+                                                         const ConsumerConfiguration& conf,
+                                                         const LookupServicePtr lookupServicePtr);
     // overrided methods from ConsumerImplBase
     Future<Result, ConsumerImplBaseWeakPtr> getConsumerCreatedFuture() override;
     const std::string& getSubscriptionName() const override;
@@ -106,6 +109,8 @@ class MultiTopicsConsumerImpl : public ConsumerImplBase,
     BlockingQueue<Message> messages_;
     ExecutorServicePtr listenerExecutor_;
     MessageListener messageListener_;
+    DeadlineTimerPtr partitionsUpdateTimer_;
+    boost::posix_time::time_duration partitionsUpdateInterval_;
     LookupServicePtr lookupServicePtr_;
     std::shared_ptr<std::atomic<int>> numberTopicPartitions_;
     Promise<Result, ConsumerImplBaseWeakPtr> multiTopicsConsumerCreatedPromise_;
@@ -114,8 +119,6 @@ class MultiTopicsConsumerImpl : public ConsumerImplBase,
     std::queue<ReceiveCallback> pendingReceives_;
 
     /* methods */
-    void handleSinglePartitionConsumerCreated(Result result, ConsumerImplBaseWeakPtr consumerImplBaseWeakPtr,
-                                              unsigned int partitionIndex);
     void handleSingleConsumerClose(Result result, std::string topicPartitionName, CloseCallback callback);
     void notifyResult(CloseCallback closeCallback);
     void messageReceived(Consumer consumer, const Message& msg);
@@ -136,6 +139,13 @@ class MultiTopicsConsumerImpl : public ConsumerImplBase,
     void handleOneTopicUnsubscribedAsync(Result result, std::shared_ptr<std::atomic<int>> consumerUnsubed,
                                          int numberPartitions, TopicNamePtr topicNamePtr,
                                          std::string& topicPartitionName, ResultCallback callback);
+    void runPartitionUpdateTask();
+    void topicPartitionUpdate();
+    void handleGetPartitions(const TopicNamePtr topicName, const Result result,
+                             const LookupDataResultPtr& lookupDataResult, int currentNumPartitions);
+    void subscribeSingleNewConsumer(const int numPartitions, TopicNamePtr topicName, int partitionIndex,
+                                    ConsumerSubResultPromisePtr topicSubResultPromise,
+                                    std::shared_ptr<std::atomic<int>> partitionsNeedCreate);
 
    private:
     void setNegativeAcknowledgeEnabledForTesting(bool enabled) override;

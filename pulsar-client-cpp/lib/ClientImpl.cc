@@ -380,7 +380,7 @@ void ClientImpl::handleSubscribe(const Result result, const LookupDataResultPtr 
                 callback(ResultInvalidConfiguration, Consumer());
                 return;
             }
-            consumer = std::make_shared<MultiTopicsConsumerImpl>(
+            consumer = MultiTopicsConsumerImpl::createPartitionedConsumer(
                 shared_from_this(), topicName->toString(), partitionMetadata->getPartitions(),
                 subscriptionName, topicName, conf, lookupServicePtr_);
         } else {
