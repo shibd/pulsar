@@ -753,10 +753,9 @@ uint64_t MultiTopicsConsumerImpl::getNumberOfConnectedConsumer() {
 void MultiTopicsConsumerImpl::runPartitionUpdateTask() {
     partitionsUpdateTimer_->expires_from_now(partitionsUpdateInterval_);
     partitionsUpdateTimer_->async_wait([this](const boost::system::error_code& ec) {
-        if (ec.failed()) {
-            // If two requests call runPartitionUpdateTask at the same time, the timer will fail, and it
-            // cannot continue at this time, and the request needs to be ignored.
-        } else {
+        // If two requests call runPartitionUpdateTask at the same time, the timer will fail, and it
+        // cannot continue at this time, and the request needs to be ignored.
+        if (!ec) {
             topicPartitionUpdate();
         }
     });
