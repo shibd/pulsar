@@ -710,14 +710,10 @@ void MultiTopicsConsumerImpl::seekAsync(const MessageId& msgId, ResultCallback c
 }
 
 void MultiTopicsConsumerImpl::seekAsync(uint64_t timestamp, ResultCallback callback) {
-    Lock stateLock(mutex_);
     if (state_ != Ready) {
-        stateLock.unlock();
         callback(ResultAlreadyClosed);
         return;
     }
-    // consumers_ could only be modified when state_ is Ready, so we needn't lock consumersMutex_ here
-    stateLock.unlock();
 
     MultiResultCallback multiResultCallback(callback, consumers_.size());
     consumers_.forEachValue([&timestamp, &multiResultCallback](ConsumerImplPtr consumer) {
@@ -773,7 +769,6 @@ void MultiTopicsConsumerImpl::topicPartitionUpdate() {
 void MultiTopicsConsumerImpl::handleGetPartitions(const TopicNamePtr topicName, const Result result,
                                                   const LookupDataResultPtr& lookupDataResult,
                                                   int currentNumPartitions) {
-    Lock stateLock(mutex_);
     if (state_ != Ready) {
         return;
     }
