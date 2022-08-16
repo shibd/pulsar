@@ -57,6 +57,14 @@ set(SAMPLE_READER_C_SOURCES
         SampleReaderCApi.c
 )
 
+set(SAMPLE_KEY_VALUE_SCHEMA_CONSUMER
+        SampleKeyValueSchemaConsumer.cc
+)
+
+set(SAMPLE_KEY_VALUE_SCHEMA_PRODUCER
+        SampleKeyValueSchemaProducer.cc
+)
+
 add_executable(SampleAsyncProducer    ${SAMPLE_ASYNC_PRODUCER_SOURCES})
 add_executable(SampleConsumer         ${SAMPLE_CONSUMER_SOURCES})
 add_executable(SampleConsumerListener ${SAMPLE_CONSUMER_LISTENER_SOURCES})
@@ -66,6 +74,8 @@ add_executable(SampleProducerCApi         ${SAMPLE_PRODUCER_C_SOURCES})
 add_executable(SampleConsumerCApi         ${SAMPLE_CONSUMER_C_SOURCES})
 add_executable(SampleConsumerListenerCApi         ${SAMPLE_CONSUMER_LISTENER_C_SOURCES})
 add_executable(SampleReaderCApi         ${SAMPLE_READER_C_SOURCES})
+add_executable(SampleKeyValueSchemaConsumer         ${SAMPLE_KEY_VALUE_SCHEMA_CONSUMER})
+add_executable(SampleKeyValueSchemaProducer         ${SAMPLE_KEY_VALUE_SCHEMA_PRODUCER})
 
 target_link_libraries(SampleAsyncProducer    ${CLIENT_LIBS} pulsarShared)
 target_link_libraries(SampleConsumer         ${CLIENT_LIBS} pulsarShared)
@@ -76,3 +86,5 @@ target_link_libraries(SampleProducerCApi     ${CLIENT_LIBS} pulsarShared)
 target_link_libraries(SampleConsumerCApi     ${CLIENT_LIBS} pulsarShared)
 target_link_libraries(SampleConsumerListenerCApi     ${CLIENT_LIBS} pulsarShared)
 target_link_libraries(SampleReaderCApi     ${CLIENT_LIBS} pulsarShared)
+target_link_libraries(SampleKeyValueSchemaConsumer     ${CLIENT_LIBS} pulsarShared)
+target_link_libraries(SampleKeyValueSchemaProducer     ${CLIENT_LIBS} pulsarShared)
