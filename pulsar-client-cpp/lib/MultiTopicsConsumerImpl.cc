@@ -62,17 +62,6 @@ MultiTopicsConsumerImpl::MultiTopicsConsumerImpl(ClientImplPtr client, const std
     }
 }
 
-ConsumerImplBasePtr MultiTopicsConsumerImpl::createPartitionedConsumer(
-    ClientImplPtr client, const std::string singleTopic, const int numPartitions,
-    const std::string& subscriptionName, TopicNamePtr topicName, const ConsumerConfiguration& conf,
-    const LookupServicePtr lookupServicePtr) {
-    MultiTopicsConsumerImpl* partitionedConsumer = new MultiTopicsConsumerImpl(
-        client, {singleTopic}, subscriptionName, topicName, conf, lookupServicePtr);
-    partitionedConsumer->topicsPartitions_.emplace(singleTopic, numPartitions);
-    std::shared_ptr<MultiTopicsConsumerImpl> partitionedConsumerPtr(partitionedConsumer);
-    return partitionedConsumerPtr;
-}
-
 void MultiTopicsConsumerImpl::start() {
     if (topics_.empty()) {
         MultiTopicsConsumerState state = Pending;
@@ -146,8 +135,8 @@ Future<Result, Consumer> MultiTopicsConsumerImpl::subscribeOneTopicAsync(const s
     // subscribe for each partition, when all partitions completed, complete promise
     Lock lock(mutex_);
     auto entry = topicsPartitions_.find(topic);
-    lock.unlock();
     if (entry == topicsPartitions_.end()) {
+        lock.unlock();
         lookupServicePtr_->getPartitionMetadataAsync(topicName).addListener(
             [this, topicName, topicPromise](const Result result, const LookupDataResultPtr lookupDataResult) {
                 if (result != ResultOk) {
@@ -160,7 +149,9 @@ Future<Result, Consumer> MultiTopicsConsumerImpl::subscribeOneTopicAsync(const s
                                          topicPromise);
             });
     } else {
-        subscribeTopicPartitions(entry->second, topicName, subscriptionName_, topicPromise);
+        auto numPartitions = entry->second;
+        lock.unlock();
+        subscribeTopicPartitions(numPartitions, topicName, subscriptionName_, topicPromise);
     }
     return topicPromise->getFuture();
 }
@@ -183,7 +174,7 @@ void MultiTopicsConsumerImpl::subscribeTopicPartitions(const int numPartitions, 
                  (int)(conf_.getMaxTotalReceiverQueueSizeAcrossPartitions() / partitions)));
 
     Lock lock(mutex_);
-    topicsPartitions_.emplace(topicName->toString(), partitions);
+    topicsPartitions_[topicName->toString()] = partitions;
     lock.unlock();
     numberTopicPartitions_->fetch_add(partitions);
 
@@ -394,7 +385,7 @@ void MultiTopicsConsumerImpl::closeAsync(ResultCallback callback) {
     int numConsumers = 0;
     for (const auto& item : consumers_.toPairVector()) {
         numConsumers++;
-        item.second->closeAsync([self, item, callback](Result result) {
+        item.second->closeAsync([&self, item, callback](Result result) {
             self->handleSingleConsumerClose(result, item.first, callback);
         });
     }
@@ -777,10 +768,12 @@ void MultiTopicsConsumerImpl::handleGetPartitions(const TopicNamePtr topicName, 
         if (newNumPartitions > currentNumPartitions) {
             LOG_INFO("new partition count: " << newNumPartitions
                                              << " current partition count: " << currentNumPartitions);
-            std::shared_ptr<std::atomic<int>> partitionsNeedCreate =
+            auto partitionsNeedCreate =
                 std::make_shared<std::atomic<int>>(newNumPartitions - currentNumPartitions);
             ConsumerSubResultPromisePtr topicPromise = std::make_shared<Promise<Result, Consumer>>();
+            Lock lock(mutex_);
             topicsPartitions_[topicName->toString()] = newNumPartitions;
+            lock.unlock();
             numberTopicPartitions_->fetch_add(newNumPartitions - currentNumPartitions);
             for (unsigned int i = currentNumPartitions; i < newNumPartitions; i++) {
                 subscribeSingleNewConsumer(newNumPartitions, topicName, i, topicPromise,

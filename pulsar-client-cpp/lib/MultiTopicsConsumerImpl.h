@@ -52,13 +52,14 @@ class MultiTopicsConsumerImpl : public ConsumerImplBase,
     MultiTopicsConsumerImpl(ClientImplPtr client, const std::vector<std::string>& topics,
                             const std::string& subscriptionName, TopicNamePtr topicName,
                             const ConsumerConfiguration& conf, const LookupServicePtr lookupServicePtr_);
+    MultiTopicsConsumerImpl(ClientImplPtr client, TopicNamePtr topicName, const int numPartitions,
+                            const std::string& subscriptionName, const ConsumerConfiguration& conf,
+                            const LookupServicePtr lookupServicePtr)
+        : MultiTopicsConsumerImpl(client, {topicName->toString()}, subscriptionName, topicName, conf,
+                                  lookupServicePtr) {
+        topicsPartitions_[topicName->toString()] = numPartitions;
+    }
     ~MultiTopicsConsumerImpl();
-    static ConsumerImplBasePtr createPartitionedConsumer(ClientImplPtr client, const std::string singleTopic,
-                                                         const int numPartitions,
-                                                         const std::string& subscriptionName,
-                                                         TopicNamePtr topicName,
-                                                         const ConsumerConfiguration& conf,
-                                                         const LookupServicePtr lookupServicePtr);
     // overrided methods from ConsumerImplBase
     Future<Result, ConsumerImplBaseWeakPtr> getConsumerCreatedFuture() override;
     const std::string& getSubscriptionName() const override;

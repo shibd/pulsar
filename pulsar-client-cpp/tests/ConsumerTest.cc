@@ -683,7 +683,9 @@ TEST(ConsumerTest, testGetTopicNameFromReceivedMessage) {
     sendMessage(partition, false);
     validateTopicName(consumer3, partition);
 
+    std::cout << "start close client" << std::endl;
     client.close();
+    std::cout << "end close client" << std::endl;
 }
 
 TEST(ConsumerTest, testIsConnected) {
