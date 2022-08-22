@@ -33,6 +33,10 @@ PULSAR_PUBLIC std::ostream &operator<<(std::ostream &s, pulsar::SchemaType schem
     return s << strSchemaType(schemaType);
 }
 
+PULSAR_PUBLIC std::ostream& operator<<(std::ostream& s, KeyValueEncodingType encodingType) {
+    return s << strEncodingType(encodingType);
+}
+
 namespace pulsar {
 
 static const std::string KEY_SCHEMA_NAME = "key.schema.name";
