@@ -612,4 +612,8 @@ uint64_t PartitionedConsumerImpl::getNumberOfConnectedConsumer() {
     return numberOfConnectedConsumer;
 }
 
+void PartitionedConsumerImpl::batchReceiveAsync(BatchReceiveCallback callback) {
+    callback(ResultOperationNotSupported, Messages());
+}
+
 }  // namespace pulsar

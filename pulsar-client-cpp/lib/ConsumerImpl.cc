@@ -497,7 +497,7 @@ void ConsumerImpl::failPendingReceiveCallback() {
 
 void ConsumerImpl::failPendingBatchReceiveCallback() {
     Messages msgs;
-    Lock lock(pendingReceiveMutex_);
+    Lock lock(batchPendingReceiveMutex_);
     while(!batchPendingReceives_.empty()) {
         OpBatchReceive opBatchReceive = batchPendingReceives_.front();
         batchPendingReceives_.pop();
@@ -536,10 +536,18 @@ void ConsumerImpl::executeNotifyCallback(Message& msg) {
     }
 
     // try trigger pending batch messages
-    if (hasEnoughMessagesForBatchReceive() && !batchPendingReceives_.empty()) {
+    if (hasEnoughMessagesForBatchReceive()) {
+        notifyBatchPendingReceivedCallback();
+    }
+}
+
+void ConsumerImpl::notifyBatchPendingReceivedCallback() {
+    Lock lock(batchPendingReceiveMutex_);
+    if (!batchPendingReceives_.empty()) {
+        LOG_INFO("try has noti fay call back");
         OpBatchReceive& batchReceive = batchPendingReceives_.front();
-        notifyBatchPendingReceivedCallback(batchReceive.batchReceiveCallback_);
         batchPendingReceives_.pop();
+        notifyBatchPendingReceivedCallback(batchReceive.batchReceiveCallback_);
     }
 }
 
@@ -547,17 +555,20 @@ void ConsumerImpl::notifyBatchPendingReceivedCallback(const BatchReceiveCallback
     const BatchReceivePolicy& batchPolicy = config_.getBatchReceivePolicy();
     auto messages =
         std::make_shared<MessagesImpl>(batchPolicy.getMaxNumMessages(), batchPolicy.getMaxNumBytes());
-    Message msg;
-    while (incomingMessages_.pop(msg) && messages->canAdd(msg)) {
+    Message peekMsg;
+    while (incomingMessages_.peek(peekMsg) && messages->canAdd(peekMsg)) {
         // decreaseIncomingMessageSize
+        Message msg;
+        incomingMessages_.pop(msg);
         incomingMessageSize_.fetch_sub(msg.getLength());
         messageProcessed(msg);
         messages->add(msg);
-        msg = Message();
     }
     auto self = shared_from_this();
-    listenerExecutor_->postWork([&callback, messages, self]() {
-      callback(ResultOk, Messages(messages));
+    listenerExecutor_->postWork([callback, messages, self]() {
+        Messages msgs(messages);
+        LOG_INFO("call back messages" << msgs.getMessageList().size());
+        callback(ResultOk, msgs);
     });
 }
 
@@ -803,11 +814,17 @@ void ConsumerImpl::batchReceiveAsync(BatchReceiveCallback callback) {
     }
 
     if (hasEnoughMessagesForBatchReceive()) {
+        LOG_INFO("notify batch pending receive call back")
+        Lock lock(batchPendingReceiveMutex_);
         notifyBatchPendingReceivedCallback(callback);
+        lock.unlock();
     } else {
+        LOG_INFO("waite timer notify batch pending receive call back")
         // expectmoreIncomingMessages();
         OpBatchReceive opBatchReceive(callback);
+        Lock lock(batchPendingReceiveMutex_);
         batchPendingReceives_.emplace(opBatchReceive);
+        lock.unlock();
         triggerBatchReceiveTimerTask(config_.getBatchReceivePolicy().getTimeoutMs());
     }
 }
@@ -1399,6 +1416,7 @@ bool ConsumerImpl::isConnected() const { return !getCnx().expired() && state_ ==
 uint64_t ConsumerImpl::getNumberOfConnectedConsumer() { return isConnected() ? 1 : 0; }
 
 bool ConsumerImpl::hasEnoughMessagesForBatchReceive() {
+    LOG_INFO("calc msg, current: size:" << incomingMessages_.size() << " bytes size:" << incomingMessageSize_);
     const BatchReceivePolicy& batchReceivePolicy = config_.getBatchReceivePolicy();
     if (batchReceivePolicy.getMaxNumMessages() <= 0 && batchReceivePolicy.getMaxNumBytes() <= 0) {
         return false;
@@ -1424,20 +1442,18 @@ void ConsumerImpl::triggerBatchReceiveTimerTask(long timeoutMs) {
 }
 void ConsumerImpl::doBatchReceiveTimeTask() {
 
-
     if (state_ != Ready) {
         return;
     }
-
-    Lock lock(pendingReceiveMutex_);
 
     bool hasPendingReceives = false;
     const BatchReceivePolicy& batchReceivePolicy = config_.getBatchReceivePolicy();
     long timeToWaitMs = batchReceivePolicy.getTimeoutMs();
 
-    while(!pendingReceives_.empty()) {
+    Lock lock(batchPendingReceiveMutex_);
+    while(!batchPendingReceives_.empty()) {
         OpBatchReceive& batchReceive = batchPendingReceives_.front();
-        long diff = batchReceivePolicy.getTimeoutMs() - (time(NULL) - batchReceive.createAt_);
+        long diff = batchReceivePolicy.getTimeoutMs() - (TimeUtils::currentTimeMillis() - batchReceive.createAt_);
         if (diff <= 0) {
             notifyBatchPendingReceivedCallback(batchReceive.batchReceiveCallback_);
             batchPendingReceives_.pop();
@@ -1447,6 +1463,7 @@ void ConsumerImpl::doBatchReceiveTimeTask() {
             break;
         }
     }
+    lock.unlock();
 
     if (hasPendingReceives) {
         triggerBatchReceiveTimerTask(timeToWaitMs);
@@ -1454,5 +1471,5 @@ void ConsumerImpl::doBatchReceiveTimeTask() {
 }
 
 OpBatchReceive::OpBatchReceive(const BatchReceiveCallback& batchReceiveCallback)
-    : batchReceiveCallback_(batchReceiveCallback), createAt_(time(NULL)) {}
+    : batchReceiveCallback_(batchReceiveCallback), createAt_(TimeUtils::currentTimeMillis()) {}
 } /* namespace pulsar */

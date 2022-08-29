@@ -190,6 +190,7 @@ class ConsumerImpl : public ConsumerImplBase,
     Result receiveHelper(Message& msg, int timeout);
     void statsCallback(Result, ResultCallback, proto::CommandAck_AckType);
     void executeNotifyCallback(Message& msg);
+    void notifyBatchPendingReceivedCallback();
     void notifyBatchPendingReceivedCallback(const BatchReceiveCallback& callback);
     void notifyPendingReceivedCallback(Result result, Message& message, const ReceiveCallback& callback);
     void failPendingReceiveCallback();

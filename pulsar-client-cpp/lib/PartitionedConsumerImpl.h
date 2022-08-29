@@ -55,6 +55,7 @@ class PartitionedConsumerImpl : public ConsumerImplBase,
     Result receive(Message& msg) override;
     Result receive(Message& msg, int timeout) override;
     void receiveAsync(ReceiveCallback& callback) override;
+    void batchReceiveAsync(BatchReceiveCallback callback) override;
     void unsubscribeAsync(ResultCallback callback) override;
     void acknowledgeAsync(const MessageId& msgId, ResultCallback callback) override;
     void acknowledgeCumulativeAsync(const MessageId& msgId, ResultCallback callback) override;

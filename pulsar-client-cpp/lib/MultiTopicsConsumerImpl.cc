@@ -711,3 +711,7 @@ uint64_t MultiTopicsConsumerImpl::getNumberOfConnectedConsumer() {
     });
     return numberOfConnectedConsumer;
 }
+
+void MultiTopicsConsumerImpl::batchReceiveAsync(BatchReceiveCallback callback) {
+    callback(ResultOperationNotSupported, Messages());
+}
