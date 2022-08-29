@@ -45,6 +45,7 @@ struct ConsumerConfigurationImpl {
     ConsumerCryptoFailureAction cryptoFailureAction{ConsumerCryptoFailureAction::FAIL};
     bool readCompacted{false};
     InitialPosition subscriptionInitialPosition{InitialPosition::InitialPositionLatest};
+    BatchReceivePolicy batchReceivePolicy{-1, 10 * 1024 * 1024, 100};
     int patternAutoDiscoveryPeriod{60};
     bool replicateSubscriptionStateEnabled{false};
     std::map<std::string, std::string> properties;

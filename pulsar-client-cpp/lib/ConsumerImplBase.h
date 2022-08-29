@@ -37,6 +37,7 @@ class ConsumerImplBase {
     virtual Result receive(Message& msg) = 0;
     virtual Result receive(Message& msg, int timeout) = 0;
     virtual void receiveAsync(ReceiveCallback& callback) = 0;
+    virtual void batchReceiveAsync(BatchReceiveCallback callback) = 0;
     virtual void unsubscribeAsync(ResultCallback callback) = 0;
     virtual void acknowledgeAsync(const MessageId& msgId, ResultCallback callback) = 0;
     virtual void acknowledgeCumulativeAsync(const MessageId& msgId, ResultCallback callback) = 0;

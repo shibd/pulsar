@@ -57,6 +57,14 @@ class BatchAcknowledgementTracker;
 typedef std::shared_ptr<MessageCrypto> MessageCryptoPtr;
 typedef std::function<void(Result, const GetLastMessageIdResponse&)> BrokerGetLastMessageIdCallback;
 
+class OpBatchReceive {
+   public:
+    OpBatchReceive();
+    OpBatchReceive(const BatchReceiveCallback& batchReceiveCallback);
+    const BatchReceiveCallback batchReceiveCallback_;
+    const long createAt_;
+};
+
 enum ConsumerTopicType
 {
     NonPartitioned,
@@ -109,6 +117,7 @@ class ConsumerImpl : public ConsumerImplBase,
     Result receive(Message& msg) override;
     Result receive(Message& msg, int timeout) override;
     void receiveAsync(ReceiveCallback& callback) override;
+    void batchReceiveAsync(BatchReceiveCallback callback) override;
     void unsubscribeAsync(ResultCallback callback) override;
     void acknowledgeAsync(const MessageId& msgId, ResultCallback callback) override;
     void acknowledgeCumulativeAsync(const MessageId& msgId, ResultCallback callback) override;
@@ -129,7 +138,10 @@ class ConsumerImpl : public ConsumerImplBase,
     void negativeAcknowledge(const MessageId& msgId) override;
     bool isConnected() const override;
     uint64_t getNumberOfConnectedConsumer() override;
+    void triggerBatchReceiveTimerTask(long timeoutMs);
+    void doBatchReceiveTimeTask();
 
+    bool hasEnoughMessagesForBatchReceive();
     virtual void disconnectConsumer();
     Result fetchSingleMessageFromBroker(Message& msg);
 
@@ -158,7 +170,7 @@ class ConsumerImpl : public ConsumerImplBase,
     ConsumerStatsBasePtr consumerStatsBasePtr_;
 
    private:
-    bool waitingForZeroQueueSizeMessage;
+    volatile bool waitingForZeroQueueSizeMessage;
     bool uncompressMessageIfNeeded(const ClientConnectionPtr& cnx, const proto::MessageIdData& messageIdData,
                                    const proto::MessageMetadata& metadata, SharedBuffer& payload,
                                    bool checkMaxMessageSize);
@@ -177,6 +189,8 @@ class ConsumerImpl : public ConsumerImplBase,
     Result receiveHelper(Message& msg);
     Result receiveHelper(Message& msg, int timeout);
     void statsCallback(Result, ResultCallback, proto::CommandAck_AckType);
+    void executeNotifyCallback(Message& msg);
+    void notifyBatchPendingReceivedCallback(const BatchReceiveCallback& callback);
     void notifyPendingReceivedCallback(Result result, Message& message, const ReceiveCallback& callback);
     void failPendingReceiveCallback();
     void setNegativeAcknowledgeEnabledForTesting(bool enabled) override;
@@ -197,7 +211,9 @@ class ConsumerImpl : public ConsumerImplBase,
     const Commands::SubscriptionMode subscriptionMode_;
 
     UnboundedBlockingQueue<Message> incomingMessages_;
+    std::atomic_int incomingMessageSize_;
     std::queue<ReceiveCallback> pendingReceives_;
+    std::queue<OpBatchReceive> batchPendingReceives_;
     std::atomic_int availablePermits_;
     const int receiverQueueRefillThreshold_;
     uint64_t consumerId_;
@@ -206,6 +222,7 @@ class ConsumerImpl : public ConsumerImplBase,
     int32_t partitionIndex_ = -1;
     Promise<Result, ConsumerImplBaseWeakPtr> consumerCreatedPromise_;
     std::atomic_bool messageListenerRunning_;
+    DeadlineTimerPtr batchReceiveTimer_;
     CompressionCodecProvider compressionCodecProvider_;
     UnAckedMessageTrackerPtr unAckedMessageTrackerPtr_;
     BatchAcknowledgementTracker batchAcknowledgementTracker_;

@@ -73,6 +73,7 @@ Result Consumer::receive(Message& msg, int timeoutMs) {
     return impl_->receive(msg, timeoutMs);
 }
 
+
 void Consumer::receiveAsync(ReceiveCallback callback) {
     if (!impl_) {
         Message msg;
@@ -80,6 +81,24 @@ void Consumer::receiveAsync(ReceiveCallback callback) {
         return;
     }
     impl_->receiveAsync(callback);
+}
+
+Result Consumer::batchReceive(Messages& msgs) {
+    if (!impl_) {
+        return ResultConsumerNotInitialized;
+    }
+    Promise<Result, Messages> promise;
+    impl_->batchReceiveAsync(WaitForCallbackValue<Messages>(promise));
+    return promise.getFuture().get(msgs);
+}
+
+void Consumer::batchReceiveAsync(BatchReceiveCallback callback) {
+    if (!impl_) {
+        Messages msgs;
+        callback(ResultConsumerNotInitialized, msgs);
+        return;
+    }
+    impl_->batchReceiveAsync(callback);
 }
 
 Result Consumer::acknowledge(const Message& message) { return acknowledge(message.getMessageId()); }
@@ -266,5 +285,6 @@ Result Consumer::getLastMessageId(MessageId& messageId) {
     getLastMessageIdAsync(WaitForCallbackValue<MessageId>(promise));
     return promise.getFuture().get(messageId);
 }
+
 
 }  // namespace pulsar

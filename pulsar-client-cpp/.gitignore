@@ -75,6 +75,7 @@ Makefile
 cmake_install.cmake
 CMakeFiles
 CMakeCache.txt
+build/
 
 pulsar-dist
 install_manifest.txt

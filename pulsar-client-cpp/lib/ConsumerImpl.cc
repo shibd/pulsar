@@ -18,6 +18,7 @@
  */
 #include "ConsumerImpl.h"
 #include "MessageImpl.h"
+#include "MessagesImpl.h"
 #include "Commands.h"
 #include "LogUtils.h"
 #include "TimeUtils.h"
@@ -103,6 +104,9 @@ ConsumerImpl::ConsumerImpl(const ClientImplPtr client, const std::string& topic,
     if (conf.isEncryptionEnabled()) {
         msgCrypto_ = std::make_shared<MessageCrypto>(consumerStr_, false);
     }
+
+    // Setup batch receive timer.
+    batchReceiveTimer_ = listenerExecutor_->createDeadlineTimer();
 }
 
 ConsumerImpl::~ConsumerImpl() {
@@ -467,9 +471,7 @@ void ConsumerImpl::messageReceived(const ClientConnectionPtr& cnx, const proto::
             (config_.getReceiverQueueSize() == 0 && messageListener_)) {
             incomingMessages_.push(m);
         } else {
-            Lock lock(mutex_);
             if (waitingForZeroQueueSizeMessage) {
-                lock.unlock();
                 incomingMessages_.push(m);
             }
         }
@@ -515,6 +517,57 @@ void ConsumerImpl::failPendingReceiveCallback() {
                                               shared_from_this(), ResultAlreadyClosed, msg, callback));
     }
     lock.unlock();
+}
+
+void ConsumerImpl::executeNotifyCallback(Message& msg) {
+    Lock lock(pendingReceiveMutex_);
+    // if asyncReceive is waiting then notify callback without adding to incomingMessages queue
+    bool asyncReceivedWaiting = !pendingReceives_.empty();
+    ReceiveCallback callback;
+    if (asyncReceivedWaiting) {
+        callback = pendingReceives_.front();
+        pendingReceives_.pop();
+    }
+    lock.unlock();
+
+    // has pending receive, direct callback.
+    if (asyncReceivedWaiting) {
+        listenerExecutor_->postWork(std::bind(&ConsumerImpl::notifyPendingReceivedCallback,
+                                              shared_from_this(), ResultOk, msg, callback));
+        return;
+    }
+
+    // try to add incoming messages.
+    // config_.getReceiverQueueSize() != 0 or waiting For ZeroQueueSize Message`
+    if (messageListener_ || config_.getReceiverQueueSize() != 0) {
+        incomingMessages_.push(msg);
+        incomingMessageSize_.fetch_add(msg.getLength());
+    }
+
+    // try trigger pending batch messages
+    if (hasEnoughMessagesForBatchReceive() && !batchPendingReceives_.empty()) {
+        OpBatchReceive& batchReceive = batchPendingReceives_.front();
+        notifyBatchPendingReceivedCallback(batchReceive.batchReceiveCallback_);
+        batchPendingReceives_.pop();
+    }
+}
+
+void ConsumerImpl::notifyBatchPendingReceivedCallback(const BatchReceiveCallback& callback) {
+    const BatchReceivePolicy& batchPolicy = config_.getBatchReceivePolicy();
+    auto messages =
+        std::make_shared<MessagesImpl>(batchPolicy.getMaxNumMessages(), batchPolicy.getMaxNumBytes());
+    Message msg;
+    while (incomingMessages_.pop(msg) && messages->canAdd(msg)) {
+        // decreaseIncomingMessageSize
+        incomingMessageSize_.fetch_sub(msg.getLength());
+        messageProcessed(msg);
+        messages->add(msg);
+        msg = Message();
+    }
+    auto self = shared_from_this();
+    listenerExecutor_->postWork([&callback, messages, self]() {
+      callback(ResultOk, Messages(messages));
+    });
 }
 
 void ConsumerImpl::notifyPendingReceivedCallback(Result result, Message& msg,
@@ -708,9 +761,7 @@ Result ConsumerImpl::fetchSingleMessageFromBroker(Message& msg) {
             getName() << "The incoming message queue should never be greater than 0 when Queue size is 0");
         incomingMessages_.clear();
     }
-    Lock localLock(mutex_);
     waitingForZeroQueueSizeMessage = true;
-    localLock.unlock();
 
     sendFlowPermitsToBroker(currentCnx, 1);
 
@@ -732,7 +783,6 @@ Result ConsumerImpl::fetchSingleMessageFromBroker(Message& msg) {
             }
         }
     }
-    return ResultOk;
 }
 
 Result ConsumerImpl::receive(Message& msg) {
@@ -762,6 +812,24 @@ void ConsumerImpl::receiveAsync(ReceiveCallback& callback) {
         if (config_.getReceiverQueueSize() == 0) {
             sendFlowPermitsToBroker(getCnx().lock(), 1);
         }
+    }
+}
+
+void ConsumerImpl::batchReceiveAsync(BatchReceiveCallback callback) {
+
+    // fail the callback if consumer is closing or closed
+    if (state_ != Ready) {
+        callback(ResultAlreadyClosed, Messages());
+        return;
+    }
+
+    if (hasEnoughMessagesForBatchReceive()) {
+        notifyBatchPendingReceivedCallback(callback);
+    } else {
+        // expectmoreIncomingMessages();
+        OpBatchReceive opBatchReceive(callback);
+        batchPendingReceives_.emplace(opBatchReceive);
+        triggerBatchReceiveTimerTask(config_.getBatchReceivePolicy().getTimeoutMs());
     }
 }
 
@@ -1028,6 +1096,9 @@ void ConsumerImpl::closeAsync(ResultCallback callback) {
 
     // fail pendingReceive callback
     failPendingReceiveCallback();
+
+    // cancel timer
+    batchReceiveTimer_->cancel();
 }
 
 void ConsumerImpl::handleClose(Result result, ResultCallback callback, ConsumerImplPtr consumer) {
@@ -1347,4 +1418,61 @@ bool ConsumerImpl::isConnected() const { return !getCnx().expired() && state_ ==
 
 uint64_t ConsumerImpl::getNumberOfConnectedConsumer() { return isConnected() ? 1 : 0; }
 
+bool ConsumerImpl::hasEnoughMessagesForBatchReceive() {
+    const BatchReceivePolicy& batchReceivePolicy = config_.getBatchReceivePolicy();
+    if (batchReceivePolicy.getMaxNumMessages() <= 0 && batchReceivePolicy.getMaxNumBytes() <= 0) {
+        return false;
+    }
+    return (batchReceivePolicy.getMaxNumMessages() > 0 &&
+            incomingMessages_.size() >= batchReceivePolicy.getMaxNumMessages()) ||
+           (batchReceivePolicy.getMaxNumBytes() > 0 &&
+            incomingMessageSize_ >= batchReceivePolicy.getMaxNumBytes());
+}
+
+void ConsumerImpl::triggerBatchReceiveTimerTask(long timeoutMs) {
+    if (timeoutMs > 0) {
+        batchReceiveTimer_->expires_from_now( boost::posix_time::milliseconds(timeoutMs));
+        auto self = shared_from_this();
+        batchReceiveTimer_->async_wait([self](const boost::system::error_code& ec){
+            // If two requests call runPartitionUpdateTask at the same time, the timer will fail, and it
+            // cannot continue at this time, and the request needs to be ignored.
+            if (!ec) {
+                self->doBatchReceiveTimeTask();
+            }
+        });
+    }
+}
+void ConsumerImpl::doBatchReceiveTimeTask() {
+
+
+    if (state_ != Ready) {
+        return;
+    }
+
+    Lock lock(pendingReceiveMutex_);
+
+    bool hasPendingReceives = false;
+    const BatchReceivePolicy& batchReceivePolicy = config_.getBatchReceivePolicy();
+    long timeToWaitMs = batchReceivePolicy.getTimeoutMs();
+
+    while(!pendingReceives_.empty()) {
+        OpBatchReceive& batchReceive = batchPendingReceives_.front();
+        long diff = batchReceivePolicy.getTimeoutMs() - (time(NULL) - batchReceive.createAt_);
+        if (diff <= 0) {
+//            notifyPendingBatchReceivedCallBack()
+              batchPendingReceives_.pop();
+        } else {
+            hasPendingReceives = true;
+            timeToWaitMs = diff;
+            break;
+        }
+    }
+
+    if (hasPendingReceives) {
+        triggerBatchReceiveTimerTask(timeToWaitMs);
+    }
+}
+
+OpBatchReceive::OpBatchReceive(const BatchReceiveCallback& batchReceiveCallback)
+    : batchReceiveCallback_(batchReceiveCallback), createAt_(time(NULL)) {}
 } /* namespace pulsar */
