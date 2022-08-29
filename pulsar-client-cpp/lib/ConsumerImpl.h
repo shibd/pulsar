@@ -193,6 +193,7 @@ class ConsumerImpl : public ConsumerImplBase,
     void notifyBatchPendingReceivedCallback(const BatchReceiveCallback& callback);
     void notifyPendingReceivedCallback(Result result, Message& message, const ReceiveCallback& callback);
     void failPendingReceiveCallback();
+    void failPendingBatchReceiveCallback();
     void setNegativeAcknowledgeEnabledForTesting(bool enabled) override;
     void trackMessage(const MessageId& messageId);
 

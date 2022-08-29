@@ -450,31 +450,7 @@ void ConsumerImpl::messageReceived(const ClientConnectionPtr& cnx, const proto::
         Lock lock(mutex_);
         numOfMessageReceived = receiveIndividualMessagesFromBatch(cnx, m, msg.redelivery_count());
     } else {
-        Lock lock(pendingReceiveMutex_);
-        // if asyncReceive is waiting then notify callback without adding to incomingMessages queue
-        bool asyncReceivedWaiting = !pendingReceives_.empty();
-        ReceiveCallback callback;
-        if (asyncReceivedWaiting) {
-            callback = pendingReceives_.front();
-            pendingReceives_.pop();
-        }
-        lock.unlock();
-
-        if (asyncReceivedWaiting) {
-            listenerExecutor_->postWork(std::bind(&ConsumerImpl::notifyPendingReceivedCallback,
-                                                  shared_from_this(), ResultOk, m, callback));
-            return;
-        }
-
-        // config_.getReceiverQueueSize() != 0 or waiting For ZeroQueueSize Message`
-        if (config_.getReceiverQueueSize() != 0 ||
-            (config_.getReceiverQueueSize() == 0 && messageListener_)) {
-            incomingMessages_.push(m);
-        } else {
-            if (waitingForZeroQueueSizeMessage) {
-                incomingMessages_.push(m);
-            }
-        }
+        executeNotifyCallback(m);
     }
 
     if (messageListener_) {
@@ -518,6 +494,21 @@ void ConsumerImpl::failPendingReceiveCallback() {
     }
     lock.unlock();
 }
+
+void ConsumerImpl::failPendingBatchReceiveCallback() {
+    Messages msgs;
+    Lock lock(pendingReceiveMutex_);
+    while(!batchPendingReceives_.empty()) {
+        OpBatchReceive opBatchReceive = batchPendingReceives_.front();
+        batchPendingReceives_.pop();
+        auto self = shared_from_this();
+        listenerExecutor_->postWork([&opBatchReceive, self, &msgs](){
+            opBatchReceive.batchReceiveCallback_(ResultAlreadyClosed, msgs);
+        });
+    }
+    lock.unlock();
+}
+
 
 void ConsumerImpl::executeNotifyCallback(Message& msg) {
     Lock lock(pendingReceiveMutex_);
@@ -613,19 +604,7 @@ uint32_t ConsumerImpl::receiveIndividualMessagesFromBatch(const ClientConnection
             }
         }
 
-        //
-        Lock lock(pendingReceiveMutex_);
-        if (!pendingReceives_.empty()) {
-            ReceiveCallback callback = pendingReceives_.front();
-            pendingReceives_.pop();
-            lock.unlock();
-            listenerExecutor_->postWork(std::bind(&ConsumerImpl::notifyPendingReceivedCallback,
-                                                  shared_from_this(), ResultOk, msg, callback));
-        } else {
-            // Regular path, append individual message to incoming messages queue
-            incomingMessages_.push(msg);
-            lock.unlock();
-        }
+        executeNotifyCallback(msg);
     }
 
     if (skippedMessages > 0) {
@@ -1096,6 +1075,7 @@ void ConsumerImpl::closeAsync(ResultCallback callback) {
 
     // fail pendingReceive callback
     failPendingReceiveCallback();
+    failPendingBatchReceiveCallback();
 
     // cancel timer
     batchReceiveTimer_->cancel();
@@ -1459,8 +1439,8 @@ void ConsumerImpl::doBatchReceiveTimeTask() {
         OpBatchReceive& batchReceive = batchPendingReceives_.front();
         long diff = batchReceivePolicy.getTimeoutMs() - (time(NULL) - batchReceive.createAt_);
         if (diff <= 0) {
-//            notifyPendingBatchReceivedCallBack()
-              batchPendingReceives_.pop();
+            notifyBatchPendingReceivedCallback(batchReceive.batchReceiveCallback_);
+            batchPendingReceives_.pop();
         } else {
             hasPendingReceives = true;
             timeToWaitMs = diff;
