@@ -4124,7 +4124,7 @@ TEST(BasicEndToEndTest, testUnAckedMessageTrackerEnabledCumulativeAck) {
 TEST(BasicEndToEndTest, testBatchReceive) {
     ClientConfiguration config;
     Client client(lookupUrl);
-    std::string topicName = "persistent://public/default/test-batch-receive";
+    std::string topicName = "persistent://public/default/test-batch-receive123";
     std::string subName = "subscription-name";
     Producer producer;
 
@@ -4228,4 +4228,36 @@ TEST(BasicEndToEndTest, testBatchReceiveTimeout) {
     producer.close();
     consumer.close();
     client.close();
+}
+
+
+TEST(BasicEndToEndTest, testBatchReceiveClose) {
+    ClientConfiguration config;
+    Client client(lookupUrl);
+    std::string topicName = "persistent://public/default/test-batch-receive-close";
+    std::string subName = "subscription-name";
+
+    Consumer consumer;
+    ConsumerConfiguration consumerConfig;
+    consumerConfig.setBatchReceivePolicy(BatchReceivePolicy(-1, -1, 1000));
+    consumerConfig.setProperty("consumer-name", "test-consumer-name");
+    consumerConfig.setProperty("consumer-id", "test-consumer-id");
+    Promise<Result, Consumer> consumerPromise;
+    client.subscribeAsync(topicName, subName, consumerConfig,
+                          WaitForCallbackValue<Consumer>(consumerPromise));
+    Future<Result, Consumer> consumerFuture = consumerPromise.getFuture();
+    Result result = consumerFuture.get(consumer);
+    ASSERT_EQ(ResultOk, result);
+
+    Latch latch(1);
+    BatchReceiveCallback batchReceiveCallback = [&latch](Result result, Messages messages) {
+        ASSERT_EQ(result, ResultAlreadyClosed);
+        latch.countdown();
+    };
+    consumer.batchReceiveAsync(batchReceiveCallback);
+    consumer.close();
+    client.close();
+
+    ASSERT_TRUE(latch.wait(std::chrono::seconds(10)));
+
 }

@@ -502,7 +502,7 @@ void ConsumerImpl::failPendingBatchReceiveCallback() {
         OpBatchReceive opBatchReceive = batchPendingReceives_.front();
         batchPendingReceives_.pop();
         auto self = shared_from_this();
-        listenerExecutor_->postWork([&opBatchReceive, self, &msgs](){
+        listenerExecutor_->postWork([opBatchReceive, self, msgs](){
             opBatchReceive.batchReceiveCallback_(ResultAlreadyClosed, msgs);
         });
     }
