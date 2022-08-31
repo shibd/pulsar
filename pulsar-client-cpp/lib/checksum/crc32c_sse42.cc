@@ -49,7 +49,7 @@
 #include <cpuid.h>
 #endif
 
-//#define CRC32C_DEBUG
+// #define CRC32C_DEBUG
 #define CRC32C_PCLMULQDQ
 
 #ifdef CRC32C_DEBUG

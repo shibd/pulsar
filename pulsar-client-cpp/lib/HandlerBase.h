@@ -19,8 +19,8 @@
 #ifndef _PULSAR_HANDLER_BASE_HEADER_
 #define _PULSAR_HANDLER_BASE_HEADER_
 #include "Backoff.h"
-#include "ClientImpl.h"
 #include "ClientConnection.h"
+#include "ClientImpl.h"
 #include <memory>
 #include <boost/asio.hpp>
 #include <string>
@@ -90,6 +90,7 @@ class HandlerBase {
     ExecutorServicePtr executor_;
     mutable std::mutex mutex_;
     std::mutex pendingReceiveMutex_;
+    std::mutex batchPendingReceiveMutex_;
     ptime creationTimestamp_;
 
     const TimeDuration operationTimeut_;

@@ -38,8 +38,8 @@ namespace pulsar {
 typedef std::shared_ptr<Promise<Result, Consumer>> ConsumerSubResultPromisePtr;
 
 class MultiTopicsConsumerImpl;
-class MultiTopicsConsumerImpl : public ConsumerImplBase,
-                                public std::enable_shared_from_this<MultiTopicsConsumerImpl> {
+class MultiTopicsConsumerImpl : public ConsumerImplBase {
+
    public:
     enum MultiTopicsConsumerState
     {
@@ -67,6 +67,7 @@ class MultiTopicsConsumerImpl : public ConsumerImplBase,
     Result receive(Message& msg) override;
     Result receive(Message& msg, int timeout) override;
     void receiveAsync(ReceiveCallback& callback) override;
+    void batchReceiveAsync(BatchReceiveCallback callback) override;
     void unsubscribeAsync(ResultCallback callback) override;
     void acknowledgeAsync(const MessageId& msgId, ResultCallback callback) override;
     void acknowledgeCumulativeAsync(const MessageId& msgId, ResultCallback callback) override;
@@ -107,8 +108,8 @@ class MultiTopicsConsumerImpl : public ConsumerImplBase,
     mutable std::mutex mutex_;
     std::mutex pendingReceiveMutex_;
     std::atomic<MultiTopicsConsumerState> state_{Pending};
-    BlockingQueue<Message> messages_;
-    const ExecutorServicePtr listenerExecutor_;
+    BlockingQueue<Message> incomingMessages_;
+    std::atomic_int incomingMessagesSize_;
     MessageListener messageListener_;
     DeadlineTimerPtr partitionsUpdateTimer_;
     boost::posix_time::time_duration partitionsUpdateInterval_;
@@ -148,8 +149,12 @@ class MultiTopicsConsumerImpl : public ConsumerImplBase,
     void subscribeSingleNewConsumer(int numPartitions, TopicNamePtr topicName, int partitionIndex,
                                     ConsumerSubResultPromisePtr topicSubResultPromise,
                                     std::shared_ptr<std::atomic<int>> partitionsNeedCreate);
+    bool hasEnoughMessagesForBatchReceive() const;
+    // impl consumer base virtual method
+    void notifyBatchPendingReceivedCallback(const BatchReceiveCallback& callback) override;
 
    private:
+    std::shared_ptr<MultiTopicsConsumerImpl> get_shared_this_ptr();
     void setNegativeAcknowledgeEnabledForTesting(bool enabled) override;
 
     FRIEND_TEST(ConsumerTest, testMultiTopicsConsumerUnAckedMessageRedelivery);
