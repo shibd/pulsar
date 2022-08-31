@@ -62,11 +62,13 @@ MultiTopicsConsumerImpl::MultiTopicsConsumerImpl(ClientImplPtr client, const std
         partitionsUpdateInterval_ = boost::posix_time::seconds(partitionsUpdateInterval);
         lookupServicePtr_ = client_->getLookup();
     }
+
+    state_ = Pending;
 }
 
 void MultiTopicsConsumerImpl::start() {
     if (topics_.empty()) {
-        MultiTopicsConsumerState state = Pending;
+        State state = Pending;
         if (state_.compare_exchange_strong(state, Ready)) {
             LOG_DEBUG("No topics passed in when create MultiTopicsConsumer.");
             multiTopicsConsumerCreatedPromise_.setValue(get_shared_this_ptr());
@@ -103,7 +105,7 @@ void MultiTopicsConsumerImpl::handleOneTopicSubscribed(Result result, Consumer c
     }
 
     if (--(*topicsNeedCreate) == 0) {
-        MultiTopicsConsumerState state = Pending;
+        State state = Pending;
         if (state_.compare_exchange_strong(state, Ready)) {
             LOG_INFO("Successfully Subscribed to Topics");
             multiTopicsConsumerCreatedPromise_.setValue(get_shared_this_ptr());
@@ -838,29 +840,6 @@ void MultiTopicsConsumerImpl::subscribeSingleNewConsumer(
     consumers_.emplace(topicPartitionName, consumer);
     LOG_INFO("Add Creating Consumer for - " << topicPartitionName << " - " << consumerStr_
                                             << " consumerSize: " << consumers_.size());
-}
-
-void MultiTopicsConsumerImpl::batchReceiveAsync(BatchReceiveCallback callback) {
-    // fail the callback if consumer is closing or closed
-    if (state_ != Ready) {
-        callback(ResultAlreadyClosed, Messages());
-        return;
-    }
-
-    if (hasEnoughMessagesForBatchReceive()) {
-        LOG_INFO("multi notify batch pending receive call back")
-        Lock lock(batchPendingReceiveMutex_);
-        notifyBatchPendingReceivedCallback(callback);
-        lock.unlock();
-    } else {
-        LOG_INFO("multi waite timer notify batch pending receive call back")
-        // expectmoreIncomingMessages();
-        OpBatchReceive opBatchReceive(callback);
-        Lock lock(batchPendingReceiveMutex_);
-        batchPendingReceives_.emplace(opBatchReceive);
-        lock.unlock();
-        triggerBatchReceiveTimerTask(batchReceivePolicy_.getTimeoutMs());
-    }
 }
 
 bool MultiTopicsConsumerImpl::hasEnoughMessagesForBatchReceive() const {

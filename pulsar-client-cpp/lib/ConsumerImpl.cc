@@ -770,29 +770,6 @@ void ConsumerImpl::receiveAsync(ReceiveCallback& callback) {
     }
 }
 
-void ConsumerImpl::batchReceiveAsync(BatchReceiveCallback callback) {
-    // fail the callback if consumer is closing or closed
-    if (state_ != Ready) {
-        callback(ResultAlreadyClosed, Messages());
-        return;
-    }
-
-    if (hasEnoughMessagesForBatchReceive()) {
-        LOG_INFO("notify batch pending receive call back")
-        Lock lock(batchPendingReceiveMutex_);
-        notifyBatchPendingReceivedCallback(callback);
-        lock.unlock();
-    } else {
-        LOG_INFO("waite timer notify batch pending receive call back")
-        // expectmoreIncomingMessages();
-        OpBatchReceive opBatchReceive(callback);
-        Lock lock(batchPendingReceiveMutex_);
-        batchPendingReceives_.emplace(opBatchReceive);
-        lock.unlock();
-        triggerBatchReceiveTimerTask(batchReceivePolicy_.getTimeoutMs());
-    }
-}
-
 Result ConsumerImpl::receiveHelper(Message& msg) {
     if (state_ != Ready) {
         return ResultAlreadyClosed;

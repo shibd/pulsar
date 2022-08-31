@@ -4105,10 +4105,22 @@ TEST(BasicEndToEndTest, testUnAckedMessageTrackerEnabledCumulativeAck) {
     client.close();
 }
 
-TEST(BasicEndToEndTest, testBatchReceive) {
+void testBatchReceive(bool multiConsumer) {
     ClientConfiguration config;
     Client client(lookupUrl);
-    std::string topicName = "persistent://public/default/test-batch-receive123";
+
+    std::string uniqueChunk = unique_str();
+    std::string topicName = "persistent://public/default/test-batch-receive" + uniqueChunk;
+
+    if (multiConsumer) {
+        // call admin api to make it partitioned
+        std::string url = adminUrl + "admin/v2/persistent/public/default/test-batch-receive" + uniqueChunk +
+                          "/partitions";
+        int res = makePutRequest(url, "5");
+        LOG_INFO("res = " << res);
+        ASSERT_FALSE(res != 204 && res != 409);
+    }
+
     std::string subName = "subscription-name";
     Producer producer;
 
@@ -4120,7 +4132,9 @@ TEST(BasicEndToEndTest, testBatchReceive) {
 
     Consumer consumer;
     ConsumerConfiguration consumerConfig;
-    consumerConfig.setBatchReceivePolicy(BatchReceivePolicy(10, -1, -1));
+    // when receiver queue size > maxNumMessages, use receiver queue size.
+    consumerConfig.setBatchReceivePolicy(BatchReceivePolicy(1000, -1, -1));
+    consumerConfig.setReceiverQueueSize(10);
     consumerConfig.setProperty("consumer-name", "test-consumer-name");
     consumerConfig.setProperty("consumer-id", "test-consumer-id");
     Promise<Result, Consumer> consumerPromise;
@@ -4166,10 +4180,30 @@ TEST(BasicEndToEndTest, testBatchReceive) {
     client.close();
 }
 
-TEST(BasicEndToEndTest, testBatchReceiveTimeout) {
+TEST(BasicEndToEndTest, testBatchReceive) {
+    testBatchReceive(false);
+}
+
+TEST(BasicEndToEndTest, testBatchReceiveWithMultiConsumer) {
+    testBatchReceive(true);
+}
+
+void testBatchReceiveTimeout(bool multiConsumer) {
     ClientConfiguration config;
     Client client(lookupUrl);
-    std::string topicName = "persistent://public/default/test-batch-receive-timeout";
+    std::string uniqueChunk = unique_str();
+    std::string topicName = "persistent://public/default/test-batch-receive-timeout" + uniqueChunk;
+
+    if (multiConsumer) {
+        // call admin api to make it partitioned
+        std::string url = adminUrl + "admin/v2/persistent/public/default/test-batch-receive-timeout" + uniqueChunk +
+                          "/partitions";
+        int res = makePutRequest(url, "5");
+        LOG_INFO("res = " << res);
+        ASSERT_FALSE(res != 204 && res != 409);
+    }
+
+
     std::string subName = "subscription-name";
     Producer producer;
 
@@ -4181,7 +4215,7 @@ TEST(BasicEndToEndTest, testBatchReceiveTimeout) {
 
     Consumer consumer;
     ConsumerConfiguration consumerConfig;
-    consumerConfig.setBatchReceivePolicy(BatchReceivePolicy(-1, -1, 1000));
+    consumerConfig.setBatchReceivePolicy(BatchReceivePolicy(1000, -1, 1000));
     consumerConfig.setProperty("consumer-name", "test-consumer-name");
     consumerConfig.setProperty("consumer-id", "test-consumer-id");
     Promise<Result, Consumer> consumerPromise;
@@ -4194,6 +4228,13 @@ TEST(BasicEndToEndTest, testBatchReceiveTimeout) {
     std::string prefix = "batch-receive-msg";
     int numOfMessages = 10;
 
+    for (int i = 0; i < numOfMessages; i++) {
+        std::string messageContent = prefix + std::to_string(i);
+        Message msg = MessageBuilder().setContent(messageContent).build();
+        producer.send(msg);
+        LOG_DEBUG("2 sending message " << messageContent);
+    }
+
     Latch latch(1);
     BatchReceiveCallback batchReceiveCallback = [&latch, numOfMessages](Result result, Messages messages) {
         ASSERT_EQ(result, ResultOk);
@@ -4201,12 +4242,6 @@ TEST(BasicEndToEndTest, testBatchReceiveTimeout) {
         latch.countdown();
     };
     consumer.batchReceiveAsync(batchReceiveCallback);
-    for (int i = 0; i < numOfMessages; i++) {
-        std::string messageContent = prefix + std::to_string(i);
-        Message msg = MessageBuilder().setContent(messageContent).build();
-        producer.send(msg);
-        LOG_DEBUG("2 sending message " << messageContent);
-    }
     ASSERT_TRUE(latch.wait(std::chrono::seconds(10)));
 
     producer.close();
@@ -4214,15 +4249,34 @@ TEST(BasicEndToEndTest, testBatchReceiveTimeout) {
     client.close();
 }
 
-TEST(BasicEndToEndTest, testBatchReceiveClose) {
+TEST(BasicEndToEndTest, testBatchReceiveTimeout) {
+    testBatchReceiveTimeout(false);
+}
+
+TEST(BasicEndToEndTest, testBatchReceiveTimeoutWithMultiConsumer) {
+    testBatchReceiveTimeout(true);
+}
+
+void testBatchReceiveClose(bool multiConsumer) {
     ClientConfiguration config;
     Client client(lookupUrl);
-    std::string topicName = "persistent://public/default/test-batch-receive-close";
-    std::string subName = "subscription-name";
 
+    std::string uniqueChunk = unique_str();
+    std::string topicName = "persistent://public/default/test-batch-receive-close" + uniqueChunk;
+
+    if (multiConsumer) {
+        // call admin api to make it partitioned
+        std::string url = adminUrl + "admin/v2/persistent/public/default/test-batch-receive-close" + uniqueChunk +
+                          "/partitions";
+        int res = makePutRequest(url, "5");
+        LOG_INFO("res = " << res);
+        ASSERT_FALSE(res != 204 && res != 409);
+    }
+
+    std::string subName = "subscription-name";
     Consumer consumer;
     ConsumerConfiguration consumerConfig;
-    consumerConfig.setBatchReceivePolicy(BatchReceivePolicy(-1, -1, 1000));
+    consumerConfig.setBatchReceivePolicy(BatchReceivePolicy(1000, -1, 1000));
     consumerConfig.setProperty("consumer-name", "test-consumer-name");
     consumerConfig.setProperty("consumer-id", "test-consumer-id");
     Promise<Result, Consumer> consumerPromise;
@@ -4243,3 +4297,7 @@ TEST(BasicEndToEndTest, testBatchReceiveClose) {
 
     ASSERT_TRUE(latch.wait(std::chrono::seconds(10)));
 }
+
+TEST(BasicEndToEndTest, testBatchReceiveClose) { testBatchReceiveClose(false); }
+
+TEST(BasicEndToEndTest, testBatchReceiveCloseWithMultiConsumer) { testBatchReceiveClose(true); }

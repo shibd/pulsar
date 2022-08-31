@@ -109,7 +109,6 @@ class ConsumerImpl : public ConsumerImplBase {
     Result receive(Message& msg) override;
     Result receive(Message& msg, int timeout) override;
     void receiveAsync(ReceiveCallback& callback) override;
-    void batchReceiveAsync(BatchReceiveCallback callback) override;
     void unsubscribeAsync(ResultCallback callback) override;
     void acknowledgeAsync(const MessageId& msgId, ResultCallback callback) override;
     void acknowledgeCumulativeAsync(const MessageId& msgId, ResultCallback callback) override;
@@ -131,7 +130,6 @@ class ConsumerImpl : public ConsumerImplBase {
     bool isConnected() const override;
     uint64_t getNumberOfConnectedConsumer() override;
 
-    bool hasEnoughMessagesForBatchReceive() const;
     virtual void disconnectConsumer();
     Result fetchSingleMessageFromBroker(Message& msg);
 
@@ -149,13 +147,16 @@ class ConsumerImpl : public ConsumerImplBase {
     void connectionOpened(const ClientConnectionPtr& cnx) override;
     void connectionFailed(Result result) override;
 
+    // impl methods from ConsumerImpl base
+    bool hasEnoughMessagesForBatchReceive() const override;
+    void notifyBatchPendingReceivedCallback(const BatchReceiveCallback& callback) override;
+
     void handleCreateConsumer(const ClientConnectionPtr& cnx, Result result);
 
     void internalListener();
 
     void internalConsumerChangeListener(bool isActive);
 
-    void notifyBatchPendingReceivedCallback(const BatchReceiveCallback& callback) override;
 
     void handleClose(Result result, ResultCallback callback, ConsumerImplPtr consumer);
     ConsumerStatsBasePtr consumerStatsBasePtr_;
@@ -204,7 +205,7 @@ class ConsumerImpl : public ConsumerImplBase {
     const Commands::SubscriptionMode subscriptionMode_;
 
     UnboundedBlockingQueue<Message> incomingMessages_;
-    std::atomic_int incomingMessagesSize_;
+    std::atomic_int incomingMessagesSize_ = {0};
     std::queue<ReceiveCallback> pendingReceives_;
     std::atomic_int availablePermits_;
     const int receiverQueueRefillThreshold_;

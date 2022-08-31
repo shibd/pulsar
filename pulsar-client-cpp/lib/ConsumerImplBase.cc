@@ -34,7 +34,9 @@ namespace pulsar {
 
 ConsumerImplBase::ConsumerImplBase(ClientImplPtr client, const std::string& topic, Backoff backoff,
                                    const ConsumerConfiguration& conf, ExecutorServicePtr listenerExecutor)
-    : HandlerBase(client, topic, backoff), listenerExecutor_(listenerExecutor) {
+    : HandlerBase(client, topic, backoff),
+      listenerExecutor_(listenerExecutor),
+      batchReceivePolicy_(conf.getBatchReceivePolicy()) {
     auto userBatchReceivePolicy = conf.getBatchReceivePolicy();
     if (userBatchReceivePolicy.getMaxNumMessages() > conf.getReceiverQueueSize()) {
         batchReceivePolicy_ =
@@ -51,6 +53,7 @@ ConsumerImplBase::ConsumerImplBase(ClientImplPtr client, const std::string& topi
 
 void ConsumerImplBase::triggerBatchReceiveTimerTask(long timeoutMs) {
     if (timeoutMs > 0) {
+        LOG_INFO("time out timer: " << timeoutMs);
         batchReceiveTimer_->expires_from_now(boost::posix_time::milliseconds(timeoutMs));
         auto self = shared_from_this();
         batchReceiveTimer_->async_wait([self](const boost::system::error_code& ec) {
@@ -77,6 +80,7 @@ void ConsumerImplBase::doBatchReceiveTimeTask() {
         long diff =
             batchReceivePolicy_.getTimeoutMs() - (TimeUtils::currentTimeMillis() - batchReceive.createAt_);
         if (diff <= 0) {
+            LOG_INFO("time out try call back");
             notifyBatchPendingReceivedCallback(batchReceive.batchReceiveCallback_);
             batchPendingReceives_.pop();
         } else {
@@ -113,6 +117,29 @@ void ConsumerImplBase::notifyBatchPendingReceivedCallback() {
         OpBatchReceive& batchReceive = batchPendingReceives_.front();
         batchPendingReceives_.pop();
         notifyBatchPendingReceivedCallback(batchReceive.batchReceiveCallback_);
+    }
+}
+
+void ConsumerImplBase::batchReceiveAsync(BatchReceiveCallback callback) {
+    // fail the callback if consumer is closing or closed
+    if (state_ != Ready) {
+        callback(ResultAlreadyClosed, Messages());
+        return;
+    }
+
+    if (hasEnoughMessagesForBatchReceive()) {
+        LOG_INFO("notify batch pending receive call back")
+        Lock lock(batchPendingReceiveMutex_);
+        notifyBatchPendingReceivedCallback(callback);
+        lock.unlock();
+    } else {
+        LOG_INFO("waite timer notify batch pending receive call back")
+        // expectmoreIncomingMessages();
+        OpBatchReceive opBatchReceive(callback);
+        Lock lock(batchPendingReceiveMutex_);
+        batchPendingReceives_.emplace(opBatchReceive);
+        lock.unlock();
+        triggerBatchReceiveTimerTask(batchReceivePolicy_.getTimeoutMs());
     }
 }
 

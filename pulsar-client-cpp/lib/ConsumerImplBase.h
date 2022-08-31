@@ -51,7 +51,7 @@ class ConsumerImplBase : public HandlerBase, public std::enable_shared_from_this
     virtual Result receive(Message& msg) = 0;
     virtual Result receive(Message& msg, int timeout) = 0;
     virtual void receiveAsync(ReceiveCallback& callback) = 0;
-    virtual void batchReceiveAsync(BatchReceiveCallback callback) = 0;
+    void batchReceiveAsync(BatchReceiveCallback callback);
     virtual void unsubscribeAsync(ResultCallback callback) = 0;
     virtual void acknowledgeAsync(const MessageId& msgId, ResultCallback callback) = 0;
     virtual void acknowledgeCumulativeAsync(const MessageId& msgId, ResultCallback callback) = 0;
@@ -90,6 +90,7 @@ class ConsumerImplBase : public HandlerBase, public std::enable_shared_from_this
     void failPendingBatchReceiveCallback();
     void notifyBatchPendingReceivedCallback();
     virtual void notifyBatchPendingReceivedCallback(const BatchReceiveCallback& callback) = 0;
+    virtual bool hasEnoughMessagesForBatchReceive() const = 0;
 
    private:
     virtual void setNegativeAcknowledgeEnabledForTesting(bool enabled) = 0;

@@ -41,14 +41,6 @@ class MultiTopicsConsumerImpl;
 class MultiTopicsConsumerImpl : public ConsumerImplBase {
 
    public:
-    enum MultiTopicsConsumerState
-    {
-        Pending,
-        Ready,
-        Closing,
-        Closed,
-        Failed
-    };
     MultiTopicsConsumerImpl(ClientImplPtr client, const std::vector<std::string>& topics,
                             const std::string& subscriptionName, TopicNamePtr topicName,
                             const ConsumerConfiguration& conf, LookupServicePtr lookupServicePtr_);
@@ -67,7 +59,6 @@ class MultiTopicsConsumerImpl : public ConsumerImplBase {
     Result receive(Message& msg) override;
     Result receive(Message& msg, int timeout) override;
     void receiveAsync(ReceiveCallback& callback) override;
-    void batchReceiveAsync(BatchReceiveCallback callback) override;
     void unsubscribeAsync(ResultCallback callback) override;
     void acknowledgeAsync(const MessageId& msgId, ResultCallback callback) override;
     void acknowledgeCumulativeAsync(const MessageId& msgId, ResultCallback callback) override;
@@ -107,9 +98,8 @@ class MultiTopicsConsumerImpl : public ConsumerImplBase {
     std::map<std::string, int> topicsPartitions_;
     mutable std::mutex mutex_;
     std::mutex pendingReceiveMutex_;
-    std::atomic<MultiTopicsConsumerState> state_{Pending};
     BlockingQueue<Message> incomingMessages_;
-    std::atomic_int incomingMessagesSize_;
+    std::atomic_int incomingMessagesSize_ = {0};
     MessageListener messageListener_;
     DeadlineTimerPtr partitionsUpdateTimer_;
     boost::posix_time::time_duration partitionsUpdateInterval_;
@@ -149,8 +139,8 @@ class MultiTopicsConsumerImpl : public ConsumerImplBase {
     void subscribeSingleNewConsumer(int numPartitions, TopicNamePtr topicName, int partitionIndex,
                                     ConsumerSubResultPromisePtr topicSubResultPromise,
                                     std::shared_ptr<std::atomic<int>> partitionsNeedCreate);
-    bool hasEnoughMessagesForBatchReceive() const;
     // impl consumer base virtual method
+    bool hasEnoughMessagesForBatchReceive() const override;
     void notifyBatchPendingReceivedCallback(const BatchReceiveCallback& callback) override;
 
    private:
