@@ -73,6 +73,7 @@ TEST(ConsumerConfigurationTest, testCustomConfig) {
 
     conf.setSchema(schema);
     ASSERT_EQ(conf.getSchema().getName(), schema.getName());
+    ASSERT_EQ(conf.getSchema().getName(), schema.getName());
     ASSERT_EQ(conf.getSchema().getSchemaType(), schema.getSchemaType());
     ASSERT_EQ(conf.getSchema().getSchema(), schema.getSchema());
     ASSERT_EQ(conf.getSchema().getProperties(), schema.getProperties());
