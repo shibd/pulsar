@@ -34,7 +34,6 @@ class KeyValueImpl;
  */
 class PULSAR_PUBLIC KeyValue {
    public:
-
     /**
      * Constructor key value, according to keyValueEncodingType, whether key and value be encoded together.
      *

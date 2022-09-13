@@ -29,9 +29,8 @@ namespace pulsar {
 class PULSAR_PUBLIC KeyValueImpl {
    public:
     KeyValueImpl();
-    KeyValueImpl(const char *data, int length, const KeyValueEncodingType &keyValueEncodingType);
-    KeyValueImpl(std::string&& key, std::string&& value,
-                 const KeyValueEncodingType &keyValueEncodingType);
+    KeyValueImpl(const char* data, int length, const KeyValueEncodingType& keyValueEncodingType);
+    KeyValueImpl(std::string&& key, std::string&& value, const KeyValueEncodingType& keyValueEncodingType);
     std::string getKey() const;
     const void* getValue() const;
     size_t getValueLength() const;

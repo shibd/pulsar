@@ -34,20 +34,24 @@ TEST(KeyValueTest, testEncodeAndDeCode) {
                                 KeyValueEncodingType::INLINE);
     ASSERT_EQ(deCodeKeyValue.getKey(), keyContent);
     ASSERT_EQ(deCodeKeyValue.getValueAsString(), valueContent);
-    ASSERT_TRUE(std::string(deCodeKeyValue.getContent().data(), deCodeKeyValue.getContent().readableBytes()).compare(valueContent) != 0);
+    ASSERT_TRUE(std::string(deCodeKeyValue.getContent().data(), deCodeKeyValue.getContent().readableBytes())
+                    .compare(valueContent) != 0);
 
     // test separated encode
-    KeyValueImpl sepKeyValue(std::string(keyContent), std::string(valueContent), KeyValueEncodingType::SEPARATED);
+    KeyValueImpl sepKeyValue(std::string(keyContent), std::string(valueContent),
+                             KeyValueEncodingType::SEPARATED);
     ASSERT_EQ(sepKeyValue.getKey(), keyContent);
     ASSERT_EQ(sepKeyValue.getValueAsString(), valueContent);
-    ASSERT_EQ(std::string(sepKeyValue.getContent().data(), sepKeyValue.getContent().readableBytes()), valueContent);
+    ASSERT_EQ(std::string(sepKeyValue.getContent().data(), sepKeyValue.getContent().readableBytes()),
+              valueContent);
 
     // test separated decode
     KeyValueImpl sepDeKeyValue(sepKeyValue.getContent().data(), sepKeyValue.getContent().readableBytes(),
                                KeyValueEncodingType::SEPARATED);
     ASSERT_EQ(sepDeKeyValue.getKey(), "");
     ASSERT_EQ(sepDeKeyValue.getValueAsString(), valueContent);
-    ASSERT_EQ(std::string(sepDeKeyValue.getContent().data(), sepDeKeyValue.getContent().readableBytes()), valueContent);
+    ASSERT_EQ(std::string(sepDeKeyValue.getContent().data(), sepDeKeyValue.getContent().readableBytes()),
+              valueContent);
 }
 
 TEST(KeyValueTest, testKeyIsEmpty) {
@@ -63,13 +67,16 @@ TEST(KeyValueTest, testKeyIsEmpty) {
                                 KeyValueEncodingType::INLINE);
     ASSERT_EQ(deCodeKeyValue.getKey(), keyContent);
     ASSERT_EQ(deCodeKeyValue.getValueAsString(), valueContent);
-    ASSERT_TRUE(std::string(deCodeKeyValue.getContent().data(), deCodeKeyValue.getContent().readableBytes()).compare(valueContent) != 0);
+    ASSERT_TRUE(std::string(deCodeKeyValue.getContent().data(), deCodeKeyValue.getContent().readableBytes())
+                    .compare(valueContent) != 0);
 
     // test separated type
-    KeyValueImpl sepKeyValue(std::string(keyContent), std::string(valueContent), KeyValueEncodingType::SEPARATED);
+    KeyValueImpl sepKeyValue(std::string(keyContent), std::string(valueContent),
+                             KeyValueEncodingType::SEPARATED);
     ASSERT_EQ(sepKeyValue.getKey(), keyContent);
     ASSERT_EQ(sepKeyValue.getValueAsString(), valueContent);
-    ASSERT_EQ(std::string(sepKeyValue.getContent().data(), sepKeyValue.getContent().readableBytes()), valueContent);
+    ASSERT_EQ(std::string(sepKeyValue.getContent().data(), sepKeyValue.getContent().readableBytes()),
+              valueContent);
 }
 
 TEST(KeyValueTest, testValueIsEmpty) {
@@ -85,11 +92,14 @@ TEST(KeyValueTest, testValueIsEmpty) {
                                 KeyValueEncodingType::INLINE);
     ASSERT_EQ(deCodeKeyValue.getKey(), keyContent);
     ASSERT_EQ(deCodeKeyValue.getValueAsString(), valueContent);
-    ASSERT_TRUE(std::string(deCodeKeyValue.getContent().data(), deCodeKeyValue.getContent().readableBytes()).compare(valueContent) != 0);
+    ASSERT_TRUE(std::string(deCodeKeyValue.getContent().data(), deCodeKeyValue.getContent().readableBytes())
+                    .compare(valueContent) != 0);
 
     // test separated type
-    KeyValueImpl sepKeyValue(std::string(keyContent), std::string(valueContent), KeyValueEncodingType::SEPARATED);
+    KeyValueImpl sepKeyValue(std::string(keyContent), std::string(valueContent),
+                             KeyValueEncodingType::SEPARATED);
     ASSERT_EQ(sepKeyValue.getKey(), keyContent);
     ASSERT_EQ(sepKeyValue.getValueAsString(), valueContent);
-    ASSERT_EQ(std::string(sepKeyValue.getContent().data(), sepKeyValue.getContent().readableBytes()), valueContent);
+    ASSERT_EQ(std::string(sepKeyValue.getContent().data(), sepKeyValue.getContent().readableBytes()),
+              valueContent);
 }

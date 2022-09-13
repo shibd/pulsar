@@ -73,11 +73,13 @@ SharedBuffer KeyValueImpl::getContent() const {
 
 std::string KeyValueImpl::getKey() const { return key_; }
 
-const void* KeyValueImpl::getValue() const { return valueBuffer_.data(); }
+const void *KeyValueImpl::getValue() const { return valueBuffer_.data(); }
 
 size_t KeyValueImpl::getValueLength() const { return valueBuffer_.readableBytes(); }
 
-std::string KeyValueImpl::getValueAsString() const { return std::string(valueBuffer_.data(), valueBuffer_.readableBytes()); }
+std::string KeyValueImpl::getValueAsString() const {
+    return std::string(valueBuffer_.data(), valueBuffer_.readableBytes());
+}
 
 KeyValueEncodingType KeyValueImpl::getEncodingType() const { return keyValueEncodingType_; }
 

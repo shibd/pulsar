@@ -193,8 +193,8 @@ uint64_t Message::getEventTimestamp() const { return impl_ ? impl_->getEventTime
 bool Message::operator==(const Message& msg) const { return getMessageId() == msg.getMessageId(); }
 
 KeyValue Message::getKeyValueData(KeyValueEncodingType keyValueEncodingType) const {
-    return KeyValue(std::make_shared<KeyValueImpl>(static_cast<const char*>(getData()),
-                                                   getLength(), keyValueEncodingType));
+    return KeyValue(std::make_shared<KeyValueImpl>(static_cast<const char*>(getData()), getLength(),
+                                                   keyValueEncodingType));
 }
 
 PULSAR_PUBLIC std::ostream& operator<<(std::ostream& s, const Message::StringMap& map) {
