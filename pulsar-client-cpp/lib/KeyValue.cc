@@ -21,8 +21,6 @@
 
 namespace pulsar {
 
-KeyValue::KeyValue() : impl_() {}
-
 KeyValue::KeyValue(KeyValueImplPtr impl) : impl_(impl) {}
 
 KeyValue::KeyValue(std::string &&key, std::string &&value,
