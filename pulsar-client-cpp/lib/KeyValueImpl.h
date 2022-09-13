@@ -20,6 +20,7 @@
 #define LIB_KEY_VALUEIMPL_H_
 
 #include <pulsar/Message.h>
+#include "SharedBuffer.h"
 
 using namespace pulsar;
 
@@ -29,16 +30,18 @@ class PULSAR_PUBLIC KeyValueImpl {
    public:
     KeyValueImpl();
     KeyValueImpl(const char *data, int length, const KeyValueEncodingType &keyValueEncodingType);
-    KeyValueImpl(const std::string &key, const std::string &value,
+    KeyValueImpl(std::string&& key, std::string&& value,
                  const KeyValueEncodingType &keyValueEncodingType);
     std::string getKey() const;
-    std::string getValue() const;
-    std::string getContent() const;
+    const void* getValue() const;
+    size_t getValueLength() const;
+    std::string getValueAsString() const;
+    SharedBuffer getContent() const;
     KeyValueEncodingType getEncodingType() const;
 
    private:
-    std::string keyContent_;
-    std::string valueContent_;
+    std::string key_;
+    SharedBuffer valueBuffer_;
     KeyValueEncodingType keyValueEncodingType_;
 };
 

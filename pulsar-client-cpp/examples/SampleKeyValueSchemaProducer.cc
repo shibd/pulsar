@@ -49,7 +49,7 @@ int main() {
 
     std::string jsonData = "{\"re\":2.1,\"im\":1.23}";
 
-    KeyValue keyValue(jsonData, jsonData, KeyValueEncodingType::INLINE);
+    KeyValue keyValue(std::move(jsonData), std::move(jsonData), KeyValueEncodingType::INLINE);
 
     Message msg = MessageBuilder().setContent(keyValue).setProperty("x", "1").build();
     producer.send(msg);
