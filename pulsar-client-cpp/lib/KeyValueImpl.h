@@ -21,6 +21,7 @@
 
 #include <pulsar/Message.h>
 #include "SharedBuffer.h"
+#include "Utils.h"
 
 using namespace pulsar;
 
@@ -28,19 +29,19 @@ namespace pulsar {
 
 class PULSAR_PUBLIC KeyValueImpl {
    public:
-    KeyValueImpl();
     KeyValueImpl(const char* data, int length, const KeyValueEncodingType& keyValueEncodingType);
     KeyValueImpl(std::string&& key, std::string&& value, const KeyValueEncodingType& keyValueEncodingType);
     std::string getKey() const;
     const void* getValue() const;
     size_t getValueLength() const;
     std::string getValueAsString() const;
-    SharedBuffer getContent() const;
     KeyValueEncodingType getEncodingType() const;
+    SharedBuffer getContent();
 
    private:
     std::string key_;
     SharedBuffer valueBuffer_;
+    Optional<SharedBuffer> contentBufferCache_;
     KeyValueEncodingType keyValueEncodingType_;
 };
 

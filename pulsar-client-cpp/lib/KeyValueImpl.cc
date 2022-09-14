@@ -24,8 +24,6 @@ using namespace pulsar;
 
 namespace pulsar {
 
-KeyValueImpl::KeyValueImpl() {}
-
 KeyValueImpl::KeyValueImpl(const char *data, int length, const KeyValueEncodingType &keyValueEncodingType) {
     keyValueEncodingType_ = keyValueEncodingType;
     if (keyValueEncodingType == KeyValueEncodingType::INLINE) {
@@ -52,7 +50,10 @@ KeyValueImpl::KeyValueImpl(std::string &&key, std::string &&value,
       valueBuffer_(SharedBuffer::take(std::move(value))),
       keyValueEncodingType_(keyValueEncodingType) {}
 
-SharedBuffer KeyValueImpl::getContent() const {
+SharedBuffer KeyValueImpl::getContent() {
+    if (contentBufferCache_.is_present()) {
+        return contentBufferCache_.value();
+    }
     if (keyValueEncodingType_ == KeyValueEncodingType::INLINE) {
         int keySize = key_.length();
         int valueSize = valueBuffer_.readableBytes();
@@ -65,10 +66,12 @@ SharedBuffer KeyValueImpl::getContent() const {
         buffer.writeUnsignedInt(valueSize == 0 ? -1 : valueSize);
         buffer.write(valueBuffer_.data(), valueSize);
 
-        return buffer;
+        contentBufferCache_ = Optional<SharedBuffer>::of(buffer);
     } else {
-        return valueBuffer_;
+        contentBufferCache_ =
+            Optional<SharedBuffer>::of(SharedBuffer::copyFrom(valueBuffer_, valueBuffer_.readableBytes()));
     }
+    return contentBufferCache_.value();
 }
 
 std::string KeyValueImpl::getKey() const { return key_; }
