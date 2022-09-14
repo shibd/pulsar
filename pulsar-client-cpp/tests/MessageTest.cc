@@ -99,33 +99,3 @@ TEST(MessageTest, testMessageBuilder) {
         ASSERT_EQ(msg.getData(), originalAddress);
     }
 }
-
-TEST(MessageTest, testMessageBuilderSetKeyValueContent) {
-    std::string keyContent = "keyContent";
-    std::string valueContent = "valueContent";
-
-    // test inline encoding type.
-    {
-        KeyValue keyValue(std::move(keyContent), std::move(valueContent), KeyValueEncodingType::INLINE);
-        const Message& message = MessageBuilder().setContent(keyValue).build();
-        ASSERT_EQ(message.getPartitionKey(), "");
-        ASSERT_TRUE(message.getDataAsString().compare(valueContent) != 0);
-    }
-
-    // test separated encoding type.
-    {
-        KeyValue keyValue(std::move(keyContent), std::move(valueContent), KeyValueEncodingType::SEPARATED);
-        const Message& message = MessageBuilder().setContent(keyValue).build();
-        ASSERT_EQ(message.getDataAsString(), valueContent);
-        ASSERT_EQ(message.getPartitionKey(), keyContent);
-    }
-
-    // test decode
-    {
-        KeyValue keyValue(std::move(keyContent), std::move(valueContent), KeyValueEncodingType::INLINE);
-        const Message& message = MessageBuilder().setContent(keyValue).build();
-        const KeyValue deKeyValue = message.getKeyValueData(KeyValueEncodingType::INLINE);
-        ASSERT_EQ(keyContent, deKeyValue.getKey());
-        ASSERT_EQ(valueContent, deKeyValue.getValueAsString());
-    }
-}

@@ -390,6 +390,8 @@ void ProducerImpl::sendAsyncWithStatsUpdate(const Message& msg, const SendCallba
         return;
     }
 
+    // Convert the payload before sending the message.
+    msg.impl_->covertKeyValueToPayload(conf_.getSchema());
     const auto& uncompressedPayload = msg.impl_->payload;
     const uint32_t uncompressedSize = uncompressedPayload.readableBytes();
     const auto result = canEnqueueRequest(uncompressedSize);
