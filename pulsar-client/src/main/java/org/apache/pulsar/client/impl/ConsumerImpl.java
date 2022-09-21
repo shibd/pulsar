@@ -447,9 +447,6 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
             }
             message = incomingMessages.take();
             messageProcessed(message);
-            if (!isValidConsumerEpoch(message)) {
-                return internalReceive();
-            }
             return beforeConsume(message);
         } catch (InterruptedException e) {
             stats.incrementNumReceiveFailed();
@@ -473,11 +470,6 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
                 cancellationHandler.setCancelAction(() -> pendingReceives.remove(result));
             } else {
                 messageProcessed(message);
-                if (!isValidConsumerEpoch(message)) {
-                    pendingReceives.add(result);
-                    cancellationHandler.setCancelAction(() -> pendingReceives.remove(result));
-                    return;
-                }
                 result.complete(beforeConsume(message));
             }
         });
@@ -488,7 +480,6 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
     @Override
     protected Message<T> internalReceive(long timeout, TimeUnit unit) throws PulsarClientException {
         Message<T> message;
-        long callTime = System.nanoTime();
         try {
             if (incomingMessages.isEmpty()) {
                 expectMoreIncomingMessages();
@@ -498,15 +489,6 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
                 return null;
             }
             messageProcessed(message);
-            if (!isValidConsumerEpoch(message)) {
-                long executionTime = System.nanoTime() - callTime;
-                long timeoutInNanos = unit.toNanos(timeout);
-                if (executionTime >= timeoutInNanos) {
-                    return null;
-                } else {
-                    return internalReceive(timeoutInNanos - executionTime, TimeUnit.NANOSECONDS);
-                }
-            }
             return beforeConsume(message);
         } catch (InterruptedException e) {
             State state = getState();
@@ -1892,18 +1874,22 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
                 return;
             }
 
-            // clear local message
-            int currentSize = 0;
-            currentSize = incomingMessages.size();
-            clearIncomingMessages();
-            unAckedMessageTracker.clear();
+            int currentSize;
+            synchronized (incomingQueueLock) {
+                // we should increase epoch every time, because MultiTopicsConsumerImpl also increase it,
+                // we need to keep both epochs the same
+                if (conf.getSubscriptionType() == SubscriptionType.Failover
+                        || conf.getSubscriptionType() == SubscriptionType.Exclusive) {
+                    CONSUMER_EPOCH.incrementAndGet(this);
+                }
 
-            // we should increase epoch every time, because MultiTopicsConsumerImpl also increase it,
-            // we need to keep both epochs the same
-            if (conf.getSubscriptionType() == SubscriptionType.Failover
-                    || conf.getSubscriptionType() == SubscriptionType.Exclusive) {
-                CONSUMER_EPOCH.incrementAndGet(this);
+                // clear local message
+                currentSize = incomingMessages.size();
+                clearIncomingMessages();
+                unAckedMessageTracker.clear();
+
             }
+
             // is channel is connected, we should send redeliver command to broker
             if (cnx != null && isConnected(cnx)) {
                 cnx.ctx().writeAndFlush(Commands.newRedeliverUnacknowledgedMessages(
@@ -1920,13 +1906,6 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
                         + "so don't need to send redeliver command to broker", this);
             }
         }
-    }
-
-    public int clearIncomingMessagesAndGetMessageNumber() {
-        int messagesNumber = incomingMessages.size();
-        clearIncomingMessages();
-        unAckedMessageTracker.clear();
-        return messagesNumber;
     }
 
     @Override
