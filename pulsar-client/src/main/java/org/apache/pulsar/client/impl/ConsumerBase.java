@@ -839,10 +839,9 @@ public abstract class ConsumerBase<T> extends HandlerState implements Consumer<T
 
     protected boolean enqueueMessageAndCheckBatchReceive(Message<T> message) {
         int messageSize = message.size();
-        if (canEnqueueMessage(message) && incomingMessages.offer(message)) {
-            // After we have enqueued the messages on `incomingMessages` queue, we cannot touch the message
-            // instance anymore, since for pooled messages, this instance was possibly already been released
-            // and recycled.
+        if (isValidConsumerEpoch(message) && canEnqueueMessage(message) && incomingMessages.offer(message)) {
+            // After we have enqueued the messages on `incomingMessages` queue, we cannot touch the message instance
+            // anymore, since for pooled messages, this instance was possibly already been released and recycled.
             INCOMING_MESSAGES_SIZE_UPDATER.addAndGet(this, messageSize);
             getMemoryLimitController().ifPresent(limiter -> limiter.forceReserveMemory(messageSize));
             updateAutoScaleReceiverQueueHint();
