@@ -32,6 +32,7 @@ DECLARE_LOG_OBJECT()
 
 #include "ObjectPool.h"
 #include "TimeUtils.h"
+#include "KeyValueImpl.h"
 
 using namespace pulsar;
 
@@ -78,6 +79,11 @@ MessageBuilder& MessageBuilder::setContent(const std::string& data) {
 MessageBuilder& MessageBuilder::setContent(std::string&& data) {
     checkMetadata();
     impl_->payload = SharedBuffer::take(std::move(data));
+    return *this;
+}
+
+MessageBuilder& MessageBuilder::setContent(const KeyValue& data) {
+    impl_->keyValuePtr = data.impl_;
     return *this;
 }
 
