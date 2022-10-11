@@ -95,7 +95,6 @@ public abstract class ConsumerBase<T> extends HandlerState implements Consumer<T
             .newUpdater(ConsumerBase.class, "incomingMessagesSize");
     protected volatile long incomingMessagesSize = 0;
     protected volatile Timeout batchReceiveTimeout = null;
-    protected final Lock reentrantLock = new ReentrantLock();
 
     protected static final AtomicLongFieldUpdater<ConsumerBase> CONSUMER_EPOCH =
             AtomicLongFieldUpdater.newUpdater(ConsumerBase.class, "consumerEpoch");
@@ -910,13 +909,7 @@ public abstract class ConsumerBase<T> extends HandlerState implements Consumer<T
         if (opBatchReceive == null) {
             return;
         }
-
-        reentrantLock.lock();
-        try {
-            notifyPendingBatchReceivedCallBack(opBatchReceive.future);
-        } finally {
-            reentrantLock.unlock();
-        }
+        notifyPendingBatchReceivedCallBack(opBatchReceive.future);
     }
 
     private boolean hasNextBatchReceive() {
