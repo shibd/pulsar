@@ -19,26 +19,22 @@
 package org.apache.pulsar.io.core;
 
 import java.util.concurrent.LinkedBlockingQueue;
-import org.apache.pulsar.common.classification.InterfaceAudience;
-import org.apache.pulsar.common.classification.InterfaceStability;
 import org.apache.pulsar.functions.api.Record;
 
 /**
  * Pulsar's Push Source Abstract.
  */
-@InterfaceAudience.Public
-@InterfaceStability.Evolving
 public abstract class AbstractPushSource<T> {
 
-    protected static class NullRecord implements Record {
+    private static class NullRecord implements Record {
         @Override
         public Object getValue() {
             return null;
         }
     }
 
-    protected static class ErrorNotifierRecord implements Record {
-        private Exception e;
+    private static class ErrorNotifierRecord implements Record {
+        private final Exception e;
         public ErrorNotifierRecord(Exception e) {
             this.e = e;
         }
