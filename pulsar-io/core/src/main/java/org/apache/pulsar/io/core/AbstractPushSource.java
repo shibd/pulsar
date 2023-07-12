@@ -24,7 +24,7 @@ import org.apache.pulsar.common.classification.InterfaceStability;
 import org.apache.pulsar.functions.api.Record;
 
 /**
- * Pulsar's Push Source Abstract. 
+ * Pulsar's Push Source Abstract.
  */
 @InterfaceAudience.Public
 @InterfaceStability.Evolving
