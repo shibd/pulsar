@@ -139,9 +139,9 @@ functionRuntimeFactoryConfigs:
     # location of log files for functions
     logDirectory: logs/
     # change the jar location only when you put the java instance jar in a different location
-    javaInstanceJarLocation:
+    javaInstanceJarLocation: ./pulsar-functions/instance/target/pulsar-functions-instance.jar
     # change the python instance location only when you put the python instance jar in a different location
-    pythonInstanceLocation:
+    pythonInstanceLocation: ./pulsar-functions/instance/target/python-instance/python_instance_main.py
     # change the extra dependencies location:
     extraFunctionDependenciesDir:
 
