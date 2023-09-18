@@ -1554,6 +1554,7 @@ flexible messaging model and an intuitive client API.</description>
             <exclude>**/*.dylib</exclude>
             <exclude>src/test/resources/*.txt</exclude>
             <exclude>**/dependency-reduced-pom.xml</exclude>
+            <exclude>src/test/resources/ssl/README.md</exclude>
           </excludes>
         </configuration>
       </plugin>
