@@ -101,6 +101,11 @@ public class TransactionBufferDisable implements TransactionBuffer {
     }
 
     @Override
+    public CompletableFuture<Position> getLastCanDispatchPosition() {
+        return topic.getLastCanDispatchPosition();
+    }
+
+    @Override
     public AbortedTxnProcessor.SnapshotType getSnapshotType() {
         return null;
     }

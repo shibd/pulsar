@@ -234,8 +234,8 @@ public class TopicTransactionBufferTest extends TransactionTestBase {
         // 3. Send message and test the exception can be handled as expected.
         MessageIdImpl messageId = (MessageIdImpl) producer.newMessage().send();
         producer.newMessage().send();
-        Mockito.doReturn(new PositionImpl(messageId.getLedgerId(), messageId.getEntryId()))
-                .when(transactionBuffer).getMaxReadPosition();
+        Mockito.doReturn(CompletableFuture.completedFuture(new PositionImpl(messageId.getLedgerId(), messageId.getEntryId())))
+                .when(transactionBuffer).getLastCanDispatchPosition();
         try {
             consumer.getLastMessageIds();
             fail();

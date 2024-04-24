@@ -1211,6 +1211,11 @@ public class NonPersistentTopic extends AbstractTopic implements Topic, TopicPol
     }
 
     @Override
+    public CompletableFuture<Position> getLastCanDispatchPosition() {
+        throw new UnsupportedOperationException("getLastCanDispatchPosition is not supported on non-persistent topic");
+    }
+
+    @Override
     public CompletableFuture<MessageId> getLastMessageId() {
         throw new UnsupportedOperationException("getLastMessageId is not supported on non-persistent topic");
     }

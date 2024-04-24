@@ -173,6 +173,7 @@ import org.apache.pulsar.common.policies.data.stats.SubscriptionStatsImpl;
 import org.apache.pulsar.common.policies.data.stats.TopicMetricBean;
 import org.apache.pulsar.common.policies.data.stats.TopicStatsImpl;
 import org.apache.pulsar.common.protocol.Commands;
+import org.apache.pulsar.common.protocol.Markers;
 import org.apache.pulsar.common.protocol.schema.SchemaData;
 import org.apache.pulsar.common.protocol.schema.SchemaVersion;
 import org.apache.pulsar.common.schema.SchemaType;
@@ -3603,6 +3604,22 @@ public class PersistentTopic extends AbstractTopic implements Topic, AddEntryCal
     }
 
     @Override
+    public CompletableFuture<Position> getLastCanDispatchPosition() {
+        return ledger.asyncReverseFindPositionOneByOne((entry -> {
+            try {
+                MessageMetadata md = Commands.parseMessageMetadata(entry.getDataBuffer());
+                // If a messages has marker will filter by AbstractBaseDispatcher.filterEntriesForConsumer
+                if (!Markers.isServerOnlyMarker(md)) {
+                    return true;
+                }
+            } finally {
+                entry.release();
+            }
+            return false;
+        }));
+    }
+
+    @Override
     public CompletableFuture<MessageId> getLastMessageId() {
         CompletableFuture<MessageId> completableFuture = new CompletableFuture<>();
         PositionImpl position = (PositionImpl) ledger.getLastConfirmedEntry();
@@ -4080,6 +4097,10 @@ public class PersistentTopic extends AbstractTopic implements Topic, AddEntryCal
 
     public PositionImpl getMaxReadPosition() {
         return this.transactionBuffer.getMaxReadPosition();
+    }
+
+    public CompletableFuture<Position> getLastCanDispatchPositionWithTxn() {
+        return this.transactionBuffer.getLastCanDispatchPosition();
     }
 
     public boolean isTxnAborted(TxnID txnID, PositionImpl readPosition) {

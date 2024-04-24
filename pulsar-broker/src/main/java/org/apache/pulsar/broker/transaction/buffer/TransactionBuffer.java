@@ -161,6 +161,12 @@ public interface TransactionBuffer {
     PositionImpl getMaxReadPosition();
 
     /**
+     * Get the can dispatch max position.
+     * @return the stable position.
+     */
+    CompletableFuture<Position> getLastCanDispatchPosition();
+
+    /**
      * Get the snapshot type.
      *
      * The snapshot type can be either "Single" or "Segment". In "Single" mode, a single snapshot log is used

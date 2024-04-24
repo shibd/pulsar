@@ -1853,6 +1853,45 @@ public class ManagedLedgerImpl implements ManagedLedger, CreateCallback {
     }
 
     @Override
+    public CompletableFuture<Position> asyncReverseFindPositionOneByOne(Predicate<Entry> predicate) {
+        CompletableFuture<Position> future = new CompletableFuture<>();
+        PositionImpl lastPosition = getLastPosition();
+        if (!isValidPosition(lastPosition)) {
+            future.complete(lastPosition);
+        } else {
+            internalAsyncReverseFindPositionOneByOne(predicate, lastPosition, future);
+        }
+        return future;
+    }
+
+    private void internalAsyncReverseFindPositionOneByOne(Predicate<Entry> predicate, PositionImpl position,
+                                                          CompletableFuture<Position> future) {
+        asyncReadEntry(position, new ReadEntryCallback() {
+            @Override
+            public void readEntryComplete(Entry entry, Object ctx) {
+                final Position position = entry.getPosition();
+                if (predicate.test(entry)) {
+                    future.complete(position);
+                } else {
+                    PositionImpl previousPosition = getPreviousPosition((PositionImpl) position);
+                    if (!isValidPosition(previousPosition)) {
+                        future.complete(previousPosition);
+                    } else {
+                        internalAsyncReverseFindPositionOneByOne(predicate,
+                                getPreviousPosition((PositionImpl) position), future);
+                    }
+                }
+            }
+
+            @Override
+            public void readEntryFailed(ManagedLedgerException exception, Object ctx) {
+                future.completeExceptionally(exception);
+            }
+        }, null);
+    }
+
+
+    @Override
     public ManagedLedgerInterceptor getManagedLedgerInterceptor() {
         return managedLedgerInterceptor;
     }

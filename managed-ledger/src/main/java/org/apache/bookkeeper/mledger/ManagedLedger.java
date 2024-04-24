@@ -649,6 +649,11 @@ public interface ManagedLedger {
     CompletableFuture<Position> asyncFindPosition(Predicate<Entry> predicate);
 
     /**
+     * Reverse find position one-entry by one-entry.
+     */
+    CompletableFuture<Position> asyncReverseFindPositionOneByOne(Predicate<Entry> predicate);
+
+    /**
      * Get the ManagedLedgerInterceptor for ManagedLedger.
      * */
     ManagedLedgerInterceptor getManagedLedgerInterceptor();

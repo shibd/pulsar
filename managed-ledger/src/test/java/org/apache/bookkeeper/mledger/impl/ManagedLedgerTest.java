@@ -4321,4 +4321,44 @@ public class ManagedLedgerTest extends MockedBookKeeperTestCase {
             assertEquals(ml.currentLedgerEntries, 0);
         });
     }
+
+    @Test
+    public void testReverseFindPositionOneByOne() throws Exception {
+        final int maxEntriesPerLedger = 5;
+
+        ManagedLedgerConfig managedLedgerConfig = new ManagedLedgerConfig();
+        managedLedgerConfig.setMaxEntriesPerLedger(maxEntriesPerLedger);
+        ManagedLedger ledger = factory.open("testReverseFindPositionOneByOne", managedLedgerConfig);
+        
+        String matchEntry = "match-entry";
+        String noMatchEntry = "nomatch-entry";
+        Predicate<Entry> predicate = entry -> {
+            try {
+                String entryValue = entry.getDataBuffer().toString(UTF_8);
+                if (matchEntry.equals(entryValue)) {
+                    return true;
+                }
+            } finally {
+                entry.release();
+            }
+            return false;
+        };
+        
+        // New ledger will return the last position, regardless of whether the conditions are met or not.
+        assertEquals(ledger.getLastConfirmedEntry(), ledger.asyncReverseFindPositionOneByOne(predicate).get());
+
+        for (int i = 0; i < maxEntriesPerLedger - 1; i++) {
+            ledger.addEntry(matchEntry.getBytes(StandardCharsets.UTF_8));
+        }
+        Position lastMatchPosition = ledger.addEntry(matchEntry.getBytes(StandardCharsets.UTF_8));
+        for (int i = 0; i < maxEntriesPerLedger; i++) {
+            ledger.addEntry(noMatchEntry.getBytes(StandardCharsets.UTF_8));
+        }
+
+        // Returns last position of entry is "match-entry"
+        assertEquals(ledger.asyncReverseFindPositionOneByOne(predicate).get(), lastMatchPosition);
+        
+        ledger.close();
+    }
+    
 }

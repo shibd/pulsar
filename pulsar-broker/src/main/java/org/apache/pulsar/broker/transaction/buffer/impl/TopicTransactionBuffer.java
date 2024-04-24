@@ -510,6 +510,11 @@ public class TopicTransactionBuffer extends TopicTransactionBufferState implemen
     }
 
     @Override
+    public CompletableFuture<Position> getLastCanDispatchPosition() {
+        return CompletableFuture.completedFuture(getMaxReadPosition());
+    }
+
+    @Override
     public TransactionInBufferStats getTransactionInBufferStats(TxnID txnID) {
         TransactionInBufferStats transactionInBufferStats = new TransactionInBufferStats();
         synchronized (this) {

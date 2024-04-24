@@ -275,6 +275,11 @@ public interface Topic {
 
     Position getLastPosition();
 
+    /**
+     * Get the last message position that can be dispatch.
+     */
+    CompletableFuture<Position> getLastCanDispatchPosition();
+
     CompletableFuture<MessageId> getLastMessageId();
 
     /**

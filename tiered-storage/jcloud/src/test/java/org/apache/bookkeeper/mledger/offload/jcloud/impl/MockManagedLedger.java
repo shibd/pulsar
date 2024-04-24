@@ -345,6 +345,11 @@ public class MockManagedLedger implements ManagedLedger {
     }
 
     @Override
+    public CompletableFuture<Position> asyncReverseFindPositionOneByOne(Predicate<Entry> predicate) {
+        return CompletableFuture.completedFuture(null);
+    }
+
+    @Override
     public ManagedLedgerInterceptor getManagedLedgerInterceptor() {
         return null;
     }
