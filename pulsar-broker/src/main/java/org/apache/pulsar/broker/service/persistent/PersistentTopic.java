@@ -3606,16 +3606,9 @@ public class PersistentTopic extends AbstractTopic implements Topic, AddEntryCal
     @Override
     public CompletableFuture<Position> getLastCanDispatchPosition() {
         return ledger.asyncReverseFindPositionOneByOne((entry -> {
-            try {
-                MessageMetadata md = Commands.parseMessageMetadata(entry.getDataBuffer());
-                // If a messages has marker will filter by AbstractBaseDispatcher.filterEntriesForConsumer
-                if (!Markers.isServerOnlyMarker(md)) {
-                    return true;
-                }
-            } finally {
-                entry.release();
-            }
-            return false;
+            MessageMetadata md = Commands.parseMessageMetadata(entry.getDataBuffer());
+            // If a messages has marker will filter by AbstractBaseDispatcher.filterEntriesForConsumer
+            return !Markers.isServerOnlyMarker(md);
         }));
     }
 

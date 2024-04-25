@@ -1870,9 +1870,11 @@ public class ManagedLedgerImpl implements ManagedLedger, CreateCallback {
             @Override
             public void readEntryComplete(Entry entry, Object ctx) {
                 final Position position = entry.getPosition();
-                if (predicate.test(entry)) {
-                    future.complete(position);
-                } else {
+                try {
+                    if (predicate.test(entry)) {
+                        future.complete(position);
+                        return;
+                    }
                     PositionImpl previousPosition = getPreviousPosition((PositionImpl) position);
                     if (!isValidPosition(previousPosition)) {
                         future.complete(previousPosition);
@@ -1880,6 +1882,10 @@ public class ManagedLedgerImpl implements ManagedLedger, CreateCallback {
                         internalAsyncReverseFindPositionOneByOne(predicate,
                                 getPreviousPosition((PositionImpl) position), future);
                     }
+                } catch (Exception e) {
+                    future.completeExceptionally(e);
+                } finally {
+                    entry.release();
                 }
             }
 

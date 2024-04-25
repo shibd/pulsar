@@ -4333,15 +4333,8 @@ public class ManagedLedgerTest extends MockedBookKeeperTestCase {
         String matchEntry = "match-entry";
         String noMatchEntry = "nomatch-entry";
         Predicate<Entry> predicate = entry -> {
-            try {
-                String entryValue = entry.getDataBuffer().toString(UTF_8);
-                if (matchEntry.equals(entryValue)) {
-                    return true;
-                }
-            } finally {
-                entry.release();
-            }
-            return false;
+            String entryValue = entry.getDataBuffer().toString(UTF_8);
+            return matchEntry.equals(entryValue);
         };
         
         // New ledger will return the last position, regardless of whether the conditions are met or not.

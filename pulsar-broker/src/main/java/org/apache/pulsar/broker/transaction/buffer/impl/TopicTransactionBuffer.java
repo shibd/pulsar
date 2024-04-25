@@ -511,7 +511,12 @@ public class TopicTransactionBuffer extends TopicTransactionBufferState implemen
 
     @Override
     public CompletableFuture<Position> getLastCanDispatchPosition() {
-        return CompletableFuture.completedFuture(getMaxReadPosition());
+        PositionImpl tnxMaxReadPosition = getMaxReadPosition();
+        if (topic.getLastPosition() == tnxMaxReadPosition) {
+            return topic.getLastCanDispatchPosition();
+        } else {
+            return CompletableFuture.completedFuture(tnxMaxReadPosition);
+        }
     }
 
     @Override

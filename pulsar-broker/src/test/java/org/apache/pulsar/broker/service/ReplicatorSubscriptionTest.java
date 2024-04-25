@@ -169,7 +169,7 @@ public class ReplicatorSubscriptionTest extends ReplicatorTestBase {
     }
 
     /**
-     * Tests replicated subscriptions across two regions
+     * Tests replicated subscriptions across two regions and can read successful.
      */
     @Test
     public void testReplicatedSubscriptionAcrossTwoRegionsGetLastMessage() throws Exception {
@@ -237,7 +237,7 @@ public class ReplicatorSubscriptionTest extends ReplicatorTestBase {
         int readNum = 0;
         while (reader.hasMessageAvailable()) {
             Message<byte[]> message = reader.readNext(10, TimeUnit.SECONDS);
-            System.out.println("Receive message: " + new String(message.getValue()) + " msgId: " + message.getMessageId());
+            log.info("Receive message: " + new String(message.getValue()) + " msgId: " + message.getMessageId());
             assertNotNull(message);
             readNum++;
         }
