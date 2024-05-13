@@ -38,6 +38,7 @@ import java.util.concurrent.TimeUnit;
 import lombok.Cleanup;
 import org.apache.bookkeeper.mledger.impl.PositionImpl;
 import org.apache.http.HttpStatus;
+import org.apache.pulsar.broker.BrokerTestUtil;
 import org.apache.pulsar.broker.ServiceConfiguration;
 import org.apache.pulsar.broker.auth.MockedPulsarServiceBaseTest;
 import org.apache.pulsar.broker.transaction.buffer.AbortedTxnProcessor;
@@ -914,6 +915,28 @@ public class AdminApiTransactionTest extends MockedPulsarServiceBaseTest {
             fail();
         } catch (ExecutionException e) {
             assertTrue(e.getCause() instanceof CoordinatorException.TransactionNotFoundException);
+        }
+    }
+
+    @Test
+    public void testPeekMessageForSkipTxnMarker() throws Exception {
+        initTransaction(1);
+
+        final String topic = BrokerTestUtil.newUniqueName("persistent://public/default/peek_marker");
+
+        @Cleanup
+        Producer<String> producer = pulsarClient.newProducer(Schema.STRING).topic(topic).create();
+        int n = 10;
+        for (int i = 0; i < n; i++) {
+            Transaction txn = pulsarClient.newTransaction().build().get();
+            producer.newMessage(txn).value("msg").send();
+            txn.commit().get();
+        }
+
+        List<Message<byte[]>> peekMsgs = admin.topics().peekMessages(topic, "t-sub", n, false);
+        assertEquals(peekMsgs.size(), n);
+        for (Message<byte[]> peekMsg : peekMsgs) {
+            assertEquals(new String(peekMsg.getValue()), "msg");
         }
     }
 

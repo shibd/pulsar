@@ -759,6 +759,10 @@ public class MessageImpl<T> implements Message<T> {
         this.messageId = messageId;
     }
 
+    public int getMarkerType() {
+        return msgMetadata.getMarkerType();
+    }
+
     @Override
     public Optional<EncryptionContext> getEncryptionCtx() {
         return encryptionCtx;

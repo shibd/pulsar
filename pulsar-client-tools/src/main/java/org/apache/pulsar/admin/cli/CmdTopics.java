@@ -65,6 +65,7 @@ import org.apache.pulsar.client.api.SubscriptionType;
 import org.apache.pulsar.client.impl.BatchMessageIdImpl;
 import org.apache.pulsar.client.impl.MessageIdImpl;
 import org.apache.pulsar.client.impl.MessageImpl;
+import org.apache.pulsar.common.api.proto.MarkerType;
 import org.apache.pulsar.common.naming.TopicDomain;
 import org.apache.pulsar.common.naming.TopicName;
 import org.apache.pulsar.common.policies.data.BacklogQuota;
@@ -1097,6 +1098,10 @@ public class CmdTopics extends CmdBase {
         @Option(names = { "-n", "--count" }, description = "Number of messages (default 1)", required = false)
         private int numMessages = 1;
 
+        @Option(names = { "-psm", "--peek-server-marker" }, 
+                description = "Enable displaying of internal server write markers.", required = false)
+        private boolean peekServerMarker = false;
+
         @Override
         void run() throws PulsarAdminException {
             String persistentTopic = validatePersistentTopic(topicName);
@@ -1121,6 +1126,9 @@ public class CmdTopics extends CmdBase {
 
                 if (message.getDeliverAtTime() != 0) {
                     System.out.println("Deliver at time: " + message.getDeliverAtTime());
+                }
+                if (peekServerMarker) {
+                    System.out.println("Marker Type: " + MarkerType.valueOf(message.getMarkerType()));
                 }
 
                 if (message.getBrokerEntryMetadata() != null) {
