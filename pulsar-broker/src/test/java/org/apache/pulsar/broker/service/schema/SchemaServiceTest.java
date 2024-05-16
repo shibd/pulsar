@@ -331,4 +331,5 @@ public class SchemaServiceTest extends MockedPulsarServiceBaseTest {
     private SchemaVersion version(long version) {
         return new LongSchemaVersion(version);
     }
+
 }
