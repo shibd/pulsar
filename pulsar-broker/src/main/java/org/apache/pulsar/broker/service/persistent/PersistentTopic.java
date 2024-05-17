@@ -1788,7 +1788,7 @@ public class PersistentTopic extends AbstractTopic implements Topic, AddEntryCal
     }
 
     private void disposeTopic(CompletableFuture<?> closeFuture) {
-        brokerService.removeTopicFromCache(PersistentTopic.this)
+        brokerService.removeTopicFutureFromCache(getName(), null)
                 .thenRun(() -> {
                     replicatedSubscriptionsController.ifPresent(ReplicatedSubscriptionsController::close);
 
