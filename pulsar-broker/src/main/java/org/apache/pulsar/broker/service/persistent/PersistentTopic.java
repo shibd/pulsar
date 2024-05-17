@@ -759,7 +759,8 @@ public class PersistentTopic extends AbstractTopic implements Topic, AddEntryCal
         }
 
         PublishContext callback = (PublishContext) ctx;
-        if (exception instanceof ManagedLedgerFencedException) {
+        if (exception instanceof ManagedLedgerFencedException
+                || exception instanceof ManagedLedgerAlreadyClosedException) {
             // If the managed ledger has been fenced, we cannot continue using it. We need to close and reopen
             close();
         } else {
