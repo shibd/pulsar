@@ -198,11 +198,15 @@ public class MessageDeduplication {
                 } else {
                     // Done replaying
                     future.complete(lastPosition);
+                    log.info("[{}] Finished replaying entries at position [{}] for deduplication",
+                            topic.getName(), lastPosition);
                 }
             }
 
             @Override
             public void readEntriesFailed(ManagedLedgerException exception, Object ctx) {
+                log.warn("[{}] Failed to replay entries for deduplication: {}",
+                        topic.getName(), exception.getMessage());
                 future.completeExceptionally(exception);
             }
         }, null, PositionImpl.LATEST);
@@ -297,7 +301,8 @@ public class MessageDeduplication {
                             log.info("[{}] Enabled deduplication", topic.getName());
                         }).exceptionally(ex -> {
                             status = Status.Failed;
-                            log.warn("[{}] Failed to enable deduplication: {}", topic.getName(), ex.getMessage());
+                            log.warn("[{}] Failed to enable deduplication when recoverSequenceIds: {}",
+                                    topic.getName(), ex.getMessage());
                             future.completeExceptionally(ex);
                             return null;
                         });
@@ -305,8 +310,8 @@ public class MessageDeduplication {
 
                     @Override
                     public void openCursorFailed(ManagedLedgerException exception, Object ctx) {
-                        log.warn("[{}] Failed to enable deduplication: {}", topic.getName(),
-                                exception.getMessage());
+                        log.warn("[{}] Failed to enable deduplication when open cursor: {}",
+                                topic.getName(), exception.getMessage());
                         future.completeExceptionally(exception);
                     }
 
@@ -466,7 +471,8 @@ public class MessageDeduplication {
 
             @Override
             public void markDeleteFailed(ManagedLedgerException exception, Object ctx) {
-                log.warn("[{}] Failed to store new deduplication snapshot at {}", topic.getName(), position);
+                log.warn("[{}] Failed to store new deduplication snapshot at {} : {}", topic.getName(),
+                        position, exception.getMessage());
                 snapshotTaking.set(false);
             }
         }, null);
