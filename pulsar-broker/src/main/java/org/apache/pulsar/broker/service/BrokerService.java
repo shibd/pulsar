@@ -1004,33 +1004,6 @@ public class BrokerService implements Closeable {
     public CompletableFuture<Optional<Topic>> getTopic(final TopicName topicName, boolean createIfMissing,
                                                        Map<String, String> properties) {
         try {
-            CompletableFuture<Optional<Topic>> topicFuture = topics.get(topicName.toString());
-            if (topicFuture != null) {
-                if (topicFuture.isCompletedExceptionally()
-                        || (topicFuture.isDone() && !topicFuture.getNow(Optional.empty()).isPresent())) {
-                    // Exceptional topics should be recreated.
-                    topics.remove(topicName.toString(), topicFuture);
-                } else {
-                    // a non-existing topic in the cache shouldn't prevent creating a topic
-                    if (createIfMissing) {
-                        if (topicFuture.isDone() && topicFuture.getNow(Optional.empty()).isPresent()) {
-                            return topicFuture;
-                        } else {
-                            return topicFuture.thenCompose(value -> {
-                                if (!value.isPresent()) {
-                                    // retry and create topic
-                                    return getTopic(topicName, createIfMissing, properties);
-                                } else {
-                                    // in-progress future completed successfully
-                                    return CompletableFuture.completedFuture(value);
-                                }
-                            });
-                        }
-                    } else {
-                        return topicFuture;
-                    }
-                }
-            }
             final boolean isPersistentTopic = topicName.getDomain().equals(TopicDomain.persistent);
             if (isPersistentTopic) {
                 return pulsar.getPulsarResources().getTopicResources().persistentTopicExists(topicName)
@@ -1283,7 +1256,7 @@ public class BrokerService implements Closeable {
                     }).exceptionally(ex -> {
                 log.warn("Replication check failed. Removing topic from topics list {}, {}", topic, ex.getCause());
                 nonPersistentTopic.stopReplProducers().whenComplete((v, exception) -> {
-                    pulsar.getExecutor().execute(() -> topics.remove(topic, topicFuture));
+                    pulsar.getExecutor().execute(() -> topics.remove(topic));
                     topicFuture.completeExceptionally(ex);
                 });
                 return null;
@@ -1299,7 +1272,7 @@ public class BrokerService implements Closeable {
             topicFuture.complete(Optional.of(nonPersistentTopic));
             // after get metadata return success, we should delete this topic from this broker, because this topic not
             // owner by this broker and it don't initialize and checkReplication
-            pulsar.getExecutor().execute(() -> topics.remove(topic, topicFuture));
+            pulsar.getExecutor().execute(() -> topics.remove(topic));
             return null;
         });
 
@@ -1534,10 +1507,12 @@ public class BrokerService implements Closeable {
         final CompletableFuture<Optional<Topic>> topicFuture = FutureUtil.createFutureWithTimeout(
                 Duration.ofSeconds(pulsar.getConfiguration().getTopicLoadTimeoutSeconds()), executor(),
                 () -> FAILED_TO_LOAD_TOPIC_TIMEOUT_EXCEPTION);
+        log.info("create topic future: {} class: {}", topic, topicFuture + "@" + System.identityHashCode(topicFuture));
         if (!pulsar.getConfiguration().isEnablePersistentTopics()) {
             if (log.isDebugEnabled()) {
                 log.debug("Broker is unable to load persistent topic {}", topic);
             }
+            pulsar.getExecutor().execute(() -> topics.remove(topic));
             topicFuture.completeExceptionally(new NotAllowedException(
                     "Broker is unable to load persistent topic"));
             return topicFuture;
@@ -1556,6 +1531,7 @@ public class BrokerService implements Closeable {
                             // do not recreate topic if topic is already migrated and deleted by broker
                             // so, avoid creating a new topic if migration is already started
                             if (ex != null && (ex.getCause() instanceof TopicMigratedException)) {
+                                pulsar.getExecutor().execute(() -> topics.remove(topic));
                                 topicFuture.completeExceptionally(ex.getCause());
                                 return null;
                             }
@@ -1570,6 +1546,7 @@ public class BrokerService implements Closeable {
                         }
                     }
                 }).exceptionally(ex -> {
+                    pulsar.getExecutor().execute(() -> topics.remove(topic));
                     topicFuture.completeExceptionally(ex.getCause());
                     return null;
                 });
@@ -1623,7 +1600,7 @@ public class BrokerService implements Closeable {
                                         finalProperties, topicPolicies)
                         ).exceptionally(throwable -> {
                             log.warn("[{}] Read topic property failed", topic, throwable);
-                            pulsar.getExecutor().execute(() -> topics.remove(topic, topicFuture));
+                            pulsar.getExecutor().execute(() -> topics.remove(topic));
                             topicFuture.completeExceptionally(throwable);
                             return null;
                         });
@@ -1631,7 +1608,7 @@ public class BrokerService implements Closeable {
                         // namespace is being unloaded
                         String msg = String.format("Namespace is being unloaded, cannot add topic %s", topic);
                         log.warn(msg);
-                        pulsar.getExecutor().execute(() -> topics.remove(topic, topicFuture));
+                        pulsar.getExecutor().execute(() -> topics.remove(topic));
                         topicFuture.completeExceptionally(new ServiceUnitNotReadyException(msg));
                     }
                 }).exceptionally(ex -> {
@@ -1662,7 +1639,7 @@ public class BrokerService implements Closeable {
         if (isTransactionInternalName(topicName)) {
             String msg = String.format("Can not create transaction system topic %s", topic);
             log.warn(msg);
-            pulsar.getExecutor().execute(() -> topics.remove(topic, topicFuture));
+            pulsar.getExecutor().execute(() -> topics.remove(topic));
             topicFuture.completeExceptionally(new NotAllowedException(msg));
             return;
         }
@@ -1744,6 +1721,7 @@ public class BrokerService implements Closeable {
                                                         + " topic", topic, FutureUtil.getException(topicFuture));
                                                 executor().submit(() -> {
                                                     persistentTopic.close().whenComplete((ignore, ex) -> {
+                                                        topics.remove(topic);
                                                         if (ex != null) {
                                                             log.warn("[{}] Get an error when closing topic.",
                                                                     topic, ex);
@@ -1760,6 +1738,7 @@ public class BrokerService implements Closeable {
                                                     + " Removing topic from topics list {}, {}", topic, ex);
                                             executor().submit(() -> {
                                                 persistentTopic.close().whenComplete((ignore, closeEx) -> {
+                                                    topics.remove(topic);
                                                     if (closeEx != null) {
                                                         log.warn("[{}] Get an error when closing topic.",
                                                                 topic, closeEx);
@@ -1771,7 +1750,7 @@ public class BrokerService implements Closeable {
                                         });
                             } catch (PulsarServerException e) {
                                 log.warn("Failed to create topic {}: {}", topic, e.getMessage());
-                                pulsar.getExecutor().execute(() -> topics.remove(topic, topicFuture));
+                                pulsar.getExecutor().execute(() -> topics.remove(topic));
                                 topicFuture.completeExceptionally(e);
                             }
                         }
@@ -1784,7 +1763,7 @@ public class BrokerService implements Closeable {
                                 topicFuture.complete(Optional.empty());
                             } else {
                                 log.warn("Failed to create topic {}", topic, exception);
-                                pulsar.getExecutor().execute(() -> topics.remove(topic, topicFuture));
+                                pulsar.getExecutor().execute(() -> topics.remove(topic));
                                 topicFuture.completeExceptionally(new PersistenceException(exception));
                             }
                         }
@@ -1794,7 +1773,7 @@ public class BrokerService implements Closeable {
             log.warn("[{}] Failed to get topic configuration: {}", topic, exception.getMessage(), exception);
             // remove topic from topics-map in different thread to avoid possible deadlock if
             // createPersistentTopic-thread only tries to handle this future-result
-            pulsar.getExecutor().execute(() -> topics.remove(topic, topicFuture));
+            pulsar.getExecutor().execute(() -> topics.remove(topic));
             topicFuture.completeExceptionally(exception);
             return null;
         });
