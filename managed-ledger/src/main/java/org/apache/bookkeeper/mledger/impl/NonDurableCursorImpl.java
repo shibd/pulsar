@@ -66,17 +66,27 @@ public class NonDurableCursorImpl extends ManagedCursorImpl {
                 readPosition, markDeletePosition);
     }
 
+    // 2599745:-1
     private void recoverCursor(PositionImpl mdPosition) {
+        // I don't now
         Pair<PositionImpl, Long> lastEntryAndCounter = ledger.getLastPositionAndCounter();
+        // 2599745:0
         this.readPosition = isReadCompacted() ? mdPosition.getNext() : ledger.getNextValidPosition(mdPosition);
+        // 2599745:-1
         markDeletePosition = ledger.getPreviousPosition(this.readPosition);
 
         // Initialize the counter such that the difference between the messages written on the ML and the
         // messagesConsumed is equal to the current backlog (negated).
         if (null != this.readPosition) {
+            // readPosition:2599745:0  lastEntryAndCounter.getLeft():2599745:1617, 
             long initialBacklog = readPosition.compareTo(lastEntryAndCounter.getLeft()) <= 0
                 ? ledger.getNumberOfEntries(Range.closed(readPosition, lastEntryAndCounter.getLeft())) : 0;
+            // -1617 = 0 - 1617
+            // 合理啊, 因为这样当消息消费到lastEntryAndCounter.left之后, 就会变成0. 然后一边发送一边消费记录真实的backlog.
             messagesConsumedCounter = lastEntryAndCounter.getRight() - initialBacklog;
+            log.info("[{}] Recover non-durable cursor messagesConsumedCounter={} entriesAddedCountern={}, lastConfirmedEntry={}, initialBacklog={}" 
+                            + ", readPosition={}, mdPosition={}", ledger.getName() + getName(),
+                    messagesConsumedCounter, lastEntryAndCounter.getRight(), lastEntryAndCounter.getLeft(), initialBacklog, readPosition, mdPosition);
         } else {
             log.warn("Recovered a non-durable cursor from position {} but didn't find a valid read position {}",
                 mdPosition, readPosition);

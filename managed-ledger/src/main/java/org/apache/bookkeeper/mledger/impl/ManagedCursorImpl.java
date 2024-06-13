@@ -1130,6 +1130,7 @@ public class ManagedCursorImpl implements ManagedCursor {
         }
 
         long backlog = ManagedLedgerImpl.ENTRIES_ADDED_COUNTER_UPDATER.get(ledger) - messagesConsumedCounter;
+        log.info("{} calc backlog {}, {}", getName(), ManagedLedgerImpl.ENTRIES_ADDED_COUNTER_UPDATER.get(ledger), messagesConsumedCounter);
         if (backlog < 0) {
             // In some case the counters get incorrect values, fall back to the precise backlog count
             backlog = getNumberOfEntries(Range.openClosed(markDeletePosition, ledger.getLastPosition()));
