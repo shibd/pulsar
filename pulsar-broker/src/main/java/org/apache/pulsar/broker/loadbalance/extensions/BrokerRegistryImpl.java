@@ -185,6 +185,7 @@ public class BrokerRegistryImpl implements BrokerRegistry {
 
     @Override
     public synchronized void close() throws PulsarServerException {
+        log.info("test");
         if (this.state == State.Closed) {
             return;
         }
