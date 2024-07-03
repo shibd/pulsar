@@ -56,7 +56,7 @@ public abstract class AbstractBatchedMetadataStore extends AbstractMetadataStore
     private final BatchMetadataStoreStats batchMetadataStoreStats;
 
     protected AbstractBatchedMetadataStore(MetadataStoreConfig conf) {
-        super(conf.getMetadataStoreName(), conf.getOpenTelemetry());
+        super(conf.getMetadataStoreName());
 
         this.enabled = conf.isBatchingEnabled();
         this.maxDelayMillis = conf.getBatchingMaxDelayMillis();
@@ -77,7 +77,7 @@ public abstract class AbstractBatchedMetadataStore extends AbstractMetadataStore
         // update synchronizer and register sync listener
         updateMetadataEventSynchronizer(conf.getSynchronizer());
         this.batchMetadataStoreStats =
-                new BatchMetadataStoreStats(metadataStoreName, executor, conf.getOpenTelemetry());
+                new BatchMetadataStoreStats(metadataStoreName, executor);
     }
 
     @Override

@@ -26,7 +26,6 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.google.common.annotations.VisibleForTesting;
 import io.netty.util.concurrent.DefaultThreadFactory;
-import io.opentelemetry.api.OpenTelemetry;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -89,7 +88,7 @@ public abstract class AbstractMetadataStore implements MetadataStoreExtended, Co
 
     protected abstract CompletableFuture<Boolean> existsFromStore(String path);
 
-    protected AbstractMetadataStore(String metadataStoreName, OpenTelemetry openTelemetry) {
+    protected AbstractMetadataStore(String metadataStoreName) {
         this.executor = new ScheduledThreadPoolExecutor(1,
                 new DefaultThreadFactory(
                         StringUtils.isNotBlank(metadataStoreName) ? metadataStoreName : getClass().getSimpleName()));
@@ -138,7 +137,7 @@ public abstract class AbstractMetadataStore implements MetadataStoreExtended, Co
                 });
 
         this.metadataStoreName = metadataStoreName;
-        this.metadataStoreStats = new MetadataStoreStats(metadataStoreName, openTelemetry);
+        this.metadataStoreStats = new MetadataStoreStats(metadataStoreName);
     }
 
     @Override

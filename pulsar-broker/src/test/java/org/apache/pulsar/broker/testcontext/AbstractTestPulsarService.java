@@ -19,7 +19,6 @@
 
 package org.apache.pulsar.broker.testcontext;
 
-import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.sdk.autoconfigure.AutoConfiguredOpenTelemetrySdkBuilder;
 import java.io.IOException;
 import java.util.Optional;
@@ -69,8 +68,7 @@ abstract class AbstractTestPulsarService extends PulsarService {
     }
 
     @Override
-    public MetadataStore createConfigurationMetadataStore(PulsarMetadataEventSynchronizer synchronizer,
-                                                          OpenTelemetry openTelemetry)
+    public MetadataStore createConfigurationMetadataStore(PulsarMetadataEventSynchronizer synchronizer)
             throws MetadataStoreException {
         if (synchronizer != null) {
             synchronizer.registerSyncListener(
@@ -80,8 +78,7 @@ abstract class AbstractTestPulsarService extends PulsarService {
     }
 
     @Override
-    public MetadataStoreExtended createLocalMetadataStore(PulsarMetadataEventSynchronizer synchronizer,
-                                                          OpenTelemetry openTelemetry)
+    public MetadataStoreExtended createLocalMetadataStore(PulsarMetadataEventSynchronizer synchronizer)
             throws MetadataStoreException, PulsarServerException {
         if (synchronizer != null) {
             synchronizer.registerSyncListener(

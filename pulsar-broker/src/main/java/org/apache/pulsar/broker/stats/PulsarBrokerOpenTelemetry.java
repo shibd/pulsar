@@ -32,8 +32,6 @@ import org.apache.pulsar.opentelemetry.OpenTelemetryService;
 public class PulsarBrokerOpenTelemetry implements Closeable {
 
     public static final String SERVICE_NAME = "pulsar-broker";
-
-    @Getter
     private final OpenTelemetryService openTelemetryService;
 
     @Getter

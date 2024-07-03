@@ -18,7 +18,6 @@
  */
 package org.apache.pulsar.metadata.api;
 
-import io.opentelemetry.api.OpenTelemetry;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.ToString;
@@ -93,10 +92,4 @@ public class MetadataStoreConfig {
      * separate clusters.
      */
     private MetadataEventSynchronizer synchronizer;
-
-    /**
-     * OpenTelemetry instance to monitor metadata store operations.
-     */
-    @Builder.Default
-    private OpenTelemetry openTelemetry = OpenTelemetry.noop();
 }
