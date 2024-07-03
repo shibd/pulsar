@@ -21,7 +21,6 @@ package org.apache.pulsar.client.impl;
 import static org.testng.Assert.assertEquals;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
-import io.opentelemetry.api.OpenTelemetry;
 import java.util.Collections;
 import lombok.Cleanup;
 import org.apache.bookkeeper.mledger.ManagedLedger;
@@ -61,7 +60,7 @@ public class SequenceIdWithErrorTest extends BkEnsemblesTestBase {
         EventLoopGroup eventLoopGroup = new NioEventLoopGroup(1);
         ManagedLedgerClientFactory clientFactory = new ManagedLedgerClientFactory();
         clientFactory.initialize(pulsar.getConfiguration(), pulsar.getLocalMetadataStore(),
-                pulsar.getBookKeeperClientFactory(), eventLoopGroup, OpenTelemetry.noop());
+                pulsar.getBookKeeperClientFactory(), eventLoopGroup);
         ManagedLedgerFactory mlFactory = clientFactory.getManagedLedgerFactory();
         ManagedLedger ml = mlFactory.open(TopicName.get(topicName).getPersistenceNamingEncoding());
         ml.close();

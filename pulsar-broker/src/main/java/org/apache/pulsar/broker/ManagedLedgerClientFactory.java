@@ -22,7 +22,6 @@ import com.github.benmanes.caffeine.cache.AsyncCache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.google.common.annotations.VisibleForTesting;
 import io.netty.channel.EventLoopGroup;
-import io.opentelemetry.api.OpenTelemetry;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Optional;
@@ -55,11 +54,9 @@ public class ManagedLedgerClientFactory implements ManagedLedgerStorage {
             bkEnsemblePolicyToBkClientMap = Caffeine.newBuilder().buildAsync();
     private StatsProvider statsProvider = new NullStatsProvider();
 
-    @Override
     public void initialize(ServiceConfiguration conf, MetadataStoreExtended metadataStore,
                            BookKeeperClientFactory bookkeeperProvider,
-                           EventLoopGroup eventLoopGroup,
-                           OpenTelemetry openTelemetry) throws Exception {
+                           EventLoopGroup eventLoopGroup) throws Exception {
         ManagedLedgerFactoryConfig managedLedgerFactoryConfig = new ManagedLedgerFactoryConfig();
         managedLedgerFactoryConfig.setMaxCacheSize(conf.getManagedLedgerCacheSizeMB() * 1024L * 1024L);
         managedLedgerFactoryConfig.setCacheEvictionWatermark(conf.getManagedLedgerCacheEvictionWatermark());
@@ -112,8 +109,7 @@ public class ManagedLedgerClientFactory implements ManagedLedgerStorage {
 
         try {
             this.managedLedgerFactory =
-                    new ManagedLedgerFactoryImpl(metadataStore, bkFactory, managedLedgerFactoryConfig, statsLogger,
-                            openTelemetry);
+                    new ManagedLedgerFactoryImpl(metadataStore, bkFactory, managedLedgerFactoryConfig, statsLogger);
         } catch (Exception e) {
             statsProvider.stop();
             defaultBkClient.close();
