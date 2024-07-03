@@ -28,13 +28,6 @@ public interface PendingAckHandleStats {
 
     void close();
 
-    long getCommitSuccessCount();
-    long getCommitFailedCount();
-    long getAbortSuccessCount();
-    long getAbortFailedCount();
-
-    PendingAckHandleAttributes getAttributes();
-
     static PendingAckHandleStats create(String topic, String subName, boolean exposeTopicLevelMetrics) {
         return new PendingAckHandleStatsImpl(topic, subName, exposeTopicLevelMetrics);
     }

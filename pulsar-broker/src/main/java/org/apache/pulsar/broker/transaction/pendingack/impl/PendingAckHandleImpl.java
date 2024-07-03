@@ -50,6 +50,7 @@ import org.apache.bookkeeper.mledger.impl.ManagedCursorImpl;
 import org.apache.commons.collections4.map.LinkedMap;
 import org.apache.commons.lang3.tuple.MutablePair;
 import org.apache.commons.lang3.tuple.Pair;
+import org.apache.pulsar.broker.ServiceConfiguration;
 import org.apache.pulsar.broker.service.BrokerServiceException;
 import org.apache.pulsar.broker.service.BrokerServiceException.NotAllowedException;
 import org.apache.pulsar.broker.service.BrokerServiceException.ServiceUnitNotReadyException;
@@ -154,14 +155,20 @@ public class PendingAckHandleImpl extends PendingAckHandleState implements Pendi
         this.topicName = persistentSubscription.getTopicName();
         this.subName = persistentSubscription.getName();
         this.persistentSubscription = persistentSubscription;
-        var pulsar = persistentSubscription.getTopic().getBrokerService().getPulsar();
-        internalPinnedExecutor = pulsar.getTransactionExecutorProvider().getExecutor(this);
+        internalPinnedExecutor = persistentSubscription
+                .getTopic()
+                .getBrokerService()
+                .getPulsar()
+                .getTransactionExecutorProvider()
+                .getExecutor(this);
 
-        this.handleStats = PendingAckHandleStats.create(
-                topicName, subName, pulsar.getConfig().isExposeTopicLevelMetricsInPrometheus());
+        ServiceConfiguration config = persistentSubscription.getTopic().getBrokerService().pulsar().getConfig();
+        boolean exposeTopicLevelMetrics = config.isExposeTopicLevelMetricsInPrometheus();
+        this.handleStats = PendingAckHandleStats.create(topicName, subName, exposeTopicLevelMetrics);
 
-        this.pendingAckStoreProvider = pulsar.getTransactionPendingAckStoreProvider();
-        transactionOpTimer = pulsar.getTransactionTimer();
+        this.pendingAckStoreProvider = this.persistentSubscription.getTopic()
+                        .getBrokerService().getPulsar().getTransactionPendingAckStoreProvider();
+        transactionOpTimer = persistentSubscription.getTopic().getBrokerService().getPulsar().getTransactionTimer();
         init();
     }
 
@@ -1012,11 +1019,6 @@ public class PendingAckHandleImpl extends PendingAckHandleState implements Pendi
             transactionInPendingAckStats.cumulativeAckPosition = stringBuilder.toString();
         }
         return transactionInPendingAckStats;
-    }
-
-    @Override
-    public PendingAckHandleStats getPendingAckHandleStats() {
-        return handleStats;
     }
 
     @Override

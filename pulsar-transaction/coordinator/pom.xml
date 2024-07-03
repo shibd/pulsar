@@ -43,12 +43,6 @@
 
         <dependency>
             <groupId>${project.groupId}</groupId>
-            <artifactId>pulsar-opentelemetry</artifactId>
-            <version>${project.version}</version>
-        </dependency>
-
-        <dependency>
-            <groupId>${project.groupId}</groupId>
             <artifactId>managed-ledger</artifactId>
             <version>${project.version}</version>
         </dependency>
