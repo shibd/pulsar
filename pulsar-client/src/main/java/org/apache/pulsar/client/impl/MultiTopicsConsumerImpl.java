@@ -26,6 +26,7 @@ import com.google.common.collect.ImmutableMap.Builder;
 import com.google.common.collect.Lists;
 import io.netty.util.Timeout;
 import io.netty.util.TimerTask;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -104,6 +105,7 @@ public class MultiTopicsConsumerImpl<T> extends ConsumerBase<T> {
 
     private volatile BatchMessageIdImpl startMessageId = null;
     private final long startMessageRollbackDurationInSec;
+    private final ConsumerInterceptors<T> internalConsumerInterceptors;
     MultiTopicsConsumerImpl(PulsarClientImpl client, ConsumerConfigurationData<T> conf,
             ExecutorProvider executorProvider, CompletableFuture<Consumer<T>> subscribeFuture, Schema<T> schema,
             ConsumerInterceptors<T> interceptors, boolean createTopicIfDoesNotExist) {
@@ -133,6 +135,11 @@ public class MultiTopicsConsumerImpl<T> extends ConsumerBase<T> {
             long startMessageRollbackDurationInSec) {
         super(client, singleTopic, conf, Math.max(2, conf.getReceiverQueueSize()), executorProvider, subscribeFuture,
                 schema, interceptors);
+        if (interceptors != null) {
+           this.internalConsumerInterceptors = getInternalConsumerInterceptors(interceptors);
+        } else {
+            this.internalConsumerInterceptors = null;
+        }
 
         checkArgument(conf.getReceiverQueueSize() > 0,
             "Receiver queue size needs to be greater than 0 for Topics Consumer");
@@ -315,7 +322,8 @@ public class MultiTopicsConsumerImpl<T> extends ConsumerBase<T> {
         CompletableFuture<Message<T>> receivedFuture = nextPendingReceive();
         if (receivedFuture != null) {
             unAckedMessageTracker.add(topicMessage.getMessageId(), topicMessage.getRedeliveryCount());
-            completePendingReceive(receivedFuture, topicMessage);
+            final Message<T> interceptMessage = beforeConsume(topicMessage);
+            completePendingReceive(receivedFuture, interceptMessage);
         } else if (enqueueMessageAndCheckBatchReceive(topicMessage) && hasPendingBatchReceive()) {
             notifyPendingBatchReceivedCallBack();
         }
@@ -366,7 +374,7 @@ public class MultiTopicsConsumerImpl<T> extends ConsumerBase<T> {
             }
             unAckedMessageTracker.add(message.getMessageId(), message.getRedeliveryCount());
             resumeReceivingFromPausedConsumersIfNeeded();
-            return message;
+            return beforeConsume(message);
         } catch (Exception e) {
             throw PulsarClientException.unwrap(e);
         }
@@ -393,6 +401,7 @@ public class MultiTopicsConsumerImpl<T> extends ConsumerBase<T> {
                     }
                 }
                 unAckedMessageTracker.add(message.getMessageId(), message.getRedeliveryCount());
+                message = beforeConsume(message);
             }
             resumeReceivingFromPausedConsumersIfNeeded();
             return message;
@@ -463,7 +472,7 @@ public class MultiTopicsConsumerImpl<T> extends ConsumerBase<T> {
                 checkState(message instanceof TopicMessageImpl);
                 unAckedMessageTracker.add(message.getMessageId(), message.getRedeliveryCount());
                 resumeReceivingFromPausedConsumersIfNeeded();
-                result.complete(message);
+                result.complete(beforeConsume(message));
             }
         });
         return result;
@@ -1119,7 +1128,7 @@ public class MultiTopicsConsumerImpl<T> extends ConsumerBase<T> {
         return ConsumerImpl.newConsumerImpl(client, partitionName,
                 configurationData, client.externalExecutorProvider(),
                 partitionIndex, true, listener != null, subFuture,
-                startMessageId, schema, interceptors,
+                startMessageId, schema, this.internalConsumerInterceptors,
                 createIfDoesNotExist, startMessageRollbackDurationInSec);
     }
 
@@ -1502,5 +1511,46 @@ public class MultiTopicsConsumerImpl<T> extends ConsumerBase<T> {
         if (msg != null) {
             acknowledgeCumulativeAsync(msg);
         }
+    }
+
+    private ConsumerInterceptors<T> getInternalConsumerInterceptors(ConsumerInterceptors<T> multiTopicInterceptors) {
+        return new ConsumerInterceptors<T>(new ArrayList<>()) {
+
+            @Override
+            public Message<T> beforeConsume(Consumer<T> consumer, Message<T> message) {
+                return message;
+            }
+
+            @Override
+            public void onAcknowledge(Consumer<T> consumer, MessageId messageId, Throwable exception) {
+                multiTopicInterceptors.onAcknowledge(consumer, messageId, exception);
+            }
+
+            @Override
+            public void onAcknowledgeCumulative(Consumer<T> consumer,
+                                                MessageId messageId, Throwable exception) {
+                multiTopicInterceptors.onAcknowledgeCumulative(consumer, messageId, exception);
+            }
+
+            @Override
+            public void onNegativeAcksSend(Consumer<T> consumer, Set<MessageId> set) {
+                multiTopicInterceptors.onNegativeAcksSend(consumer, set);
+            }
+
+            @Override
+            public void onAckTimeoutSend(Consumer<T> consumer, Set<MessageId> set) {
+                multiTopicInterceptors.onAckTimeoutSend(consumer, set);
+            }
+
+            @Override
+            public void onPartitionsChange(String topicName, int partitions) {
+                multiTopicInterceptors.onPartitionsChange(topicName, partitions);
+            }
+
+            @Override
+            public void close() throws IOException {
+                multiTopicInterceptors.close();
+            }
+        };
     }
 }
