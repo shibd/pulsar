@@ -727,6 +727,14 @@ public abstract class ConsumerBase<T> extends HandlerState implements Consumer<T
         this.maxReceiverQueueSize = newSize;
     }
 
+    protected Message<T> onArrival(Message<T> message) {
+        if (interceptors != null) {
+            return interceptors.onArrival(this, message);
+        } else {
+            return message;
+        }
+    }
+
     protected Message<T> beforeConsume(Message<T> message) {
         if (interceptors != null) {
             return interceptors.beforeConsume(this, message);

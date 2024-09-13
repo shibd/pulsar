@@ -1517,6 +1517,11 @@ public class MultiTopicsConsumerImpl<T> extends ConsumerBase<T> {
         return new ConsumerInterceptors<T>(new ArrayList<>()) {
 
             @Override
+            public Message<T> onArrival(Consumer<T> consumer, Message<T> message) {
+                return multiTopicInterceptors.onArrival(consumer, message);
+            }
+
+            @Override
             public Message<T> beforeConsume(Consumer<T> consumer, Message<T> message) {
                 return message;
             }
