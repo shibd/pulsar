@@ -3927,7 +3927,8 @@ public class PersistentTopic extends AbstractTopic implements Topic, AddEntryCal
                 messageDeduplication.isDuplicate(publishContext, headersAndPayload);
         switch (status) {
             case NotDup:
-                transactionBuffer.appendBufferToTxn(txnID, publishContext.getSequenceId(), headersAndPayload)
+                transactionBuffer.appendBufferToTxn(txnID, publishContext.getSequenceId(),
+                                (int) publishContext.getNumberOfMessages(), headersAndPayload)
                         .thenAccept(position -> {
                             // Message has been successfully persisted
                             messageDeduplication.recordMessagePersisted(publishContext,

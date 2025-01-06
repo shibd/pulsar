@@ -255,7 +255,7 @@ public class TopicTransactionBuffer extends TopicTransactionBufferState implemen
     }
 
     @Override
-    public CompletableFuture<Position> appendBufferToTxn(TxnID txnId, long sequenceId, ByteBuf buffer) {
+    public CompletableFuture<Position> appendBufferToTxn(TxnID txnId, long sequenceId, int numberOfMessages, ByteBuf buffer) {
         CompletableFuture<Position> completableFuture = new CompletableFuture<>();
         Long lowWaterMark = lowWaterMarks.get(txnId.getMostSigBits());
         if (lowWaterMark != null && lowWaterMark >= txnId.getLeastSigBits()) {
@@ -264,7 +264,7 @@ public class TopicTransactionBuffer extends TopicTransactionBufferState implemen
                     + "Please use a new transaction to send message."));
             return completableFuture;
         }
-        topic.getManagedLedger().asyncAddEntry(buffer, new AsyncCallbacks.AddEntryCallback() {
+        topic.getManagedLedger().asyncAddEntry(buffer, numberOfMessages, new AsyncCallbacks.AddEntryCallback() {
             @Override
             public void addComplete(Position position, ByteBuf entryData, Object ctx) {
                 synchronized (TopicTransactionBuffer.this) {

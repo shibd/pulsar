@@ -563,4 +563,31 @@ public class PersistentFailoverE2ETest extends BrokerTestBase {
         subscribeFuture2.get().unsubscribe();
         admin.topics().delete(topicName);
     }
+
+
+
+    @Test
+    public void testActiveConsumerFailoverWithSeek() throws Exception {
+        final String topicName = "persistent://prop/use/ns-abc/failover-topic4";
+        final String subName = "sub1";
+        final int numMsgs = 100;
+        List<Message<byte[]>> receivedMessages = new ArrayList<>();
+
+        Consumer<byte[]> consumer1 = pulsarClient.newConsumer().topic(topicName).subscriptionName(subName)
+                .subscriptionType(SubscriptionType.Failover).subscribe();
+        
+        Consumer<byte[]> consumer2 = pulsarClient.newConsumer().topic(topicName).subscriptionName(subName)
+                .subscriptionType(SubscriptionType.Failover).subscribe();
+        
+        Producer<byte[]> producer = pulsarClient.newProducer().topic(topicName)
+                .enableBatching(false)
+                .messageRoutingMode(MessageRoutingMode.SinglePartition)
+                .create();
+        for (int i = 0; i < numMsgs; i++) {
+            String message = "my-message-" + i;
+            producer.send(message.getBytes());
+        }
+        
+        
+    }
 }
