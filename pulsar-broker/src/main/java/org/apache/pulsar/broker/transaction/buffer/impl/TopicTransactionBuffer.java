@@ -247,7 +247,7 @@ public class TopicTransactionBuffer extends TopicTransactionBufferState implemen
     }
 
     @Override
-    public CompletableFuture<Position> appendBufferToTxn(TxnID txnId, long sequenceId, ByteBuf buffer) {
+    public CompletableFuture<Position> appendBufferToTxn(TxnID txnId, long sequenceId, int numberOfMessages, ByteBuf buffer) {
         // Method `takeAbortedTxnsSnapshot` will be executed in the different thread.
         // So we need to retain the buffer in this thread. It will be released after message persistent.
         buffer.retain();
@@ -272,9 +272,9 @@ public class TopicTransactionBuffer extends TopicTransactionBufferState implemen
                     completableFuture.completeExceptionally(exception);
                     return null;
                 });
-                return completableFuture.thenCompose(__ -> internalAppendBufferToTxn(txnId, buffer));
+                return completableFuture.thenCompose(__ -> internalAppendBufferToTxn(txnId, numberOfMessages, buffer));
             } else if (checkIfReady()) {
-                return internalAppendBufferToTxn(txnId, buffer);
+                return internalAppendBufferToTxn(txnId, numberOfMessages, buffer);
             } else {
                 // `publishFuture` will be completed after transaction buffer recover completely
                 // during initializing, so this case should not happen.
@@ -286,7 +286,7 @@ public class TopicTransactionBuffer extends TopicTransactionBufferState implemen
         return future;
     }
 
-    private CompletableFuture<Position> internalAppendBufferToTxn(TxnID txnId, ByteBuf buffer) {
+    private CompletableFuture<Position> internalAppendBufferToTxn(TxnID txnId, int numberOfMessages, ByteBuf buffer) {
         CompletableFuture<Position> completableFuture = new CompletableFuture<>();
         Long lowWaterMark = lowWaterMarks.get(txnId.getMostSigBits());
         if (lowWaterMark != null && lowWaterMark >= txnId.getLeastSigBits()) {
@@ -295,7 +295,7 @@ public class TopicTransactionBuffer extends TopicTransactionBufferState implemen
                     + "Please use a new transaction to send message."));
             return completableFuture;
         }
-        topic.getManagedLedger().asyncAddEntry(buffer, new AsyncCallbacks.AddEntryCallback() {
+        topic.getManagedLedger().asyncAddEntry(buffer, numberOfMessages, new AsyncCallbacks.AddEntryCallback() {
             @Override
             public void addComplete(Position position, ByteBuf entryData, Object ctx) {
                 synchronized (TopicTransactionBuffer.this) {

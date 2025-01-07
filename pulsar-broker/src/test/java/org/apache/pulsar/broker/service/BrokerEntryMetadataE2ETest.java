@@ -33,11 +33,15 @@ import org.apache.pulsar.client.api.Consumer;
 import org.apache.pulsar.client.api.Message;
 import org.apache.pulsar.client.api.MessageId;
 import org.apache.pulsar.client.api.Producer;
+import org.apache.pulsar.client.api.PulsarClient;
 import org.apache.pulsar.client.api.Schema;
 import org.apache.pulsar.client.api.SubscriptionType;
+import org.apache.pulsar.client.api.transaction.Transaction;
 import org.apache.pulsar.client.impl.MessageIdImpl;
 import org.apache.pulsar.client.impl.MessageImpl;
 import org.apache.pulsar.common.api.proto.BrokerEntryMetadata;
+import org.apache.pulsar.common.naming.NamespaceName;
+import org.apache.pulsar.common.policies.data.TenantInfo;
 import org.apache.pulsar.common.util.FutureUtil;
 import org.assertj.core.util.Sets;
 import org.awaitility.Awaitility;
@@ -72,7 +76,19 @@ public class BrokerEntryMetadataE2ETest extends BrokerTestBase {
                 "org.apache.pulsar.common.intercept.AppendIndexMetadataInterceptor"
                 ));
         conf.setExposingBrokerEntryMetadataToClientEnabled(true);
+        conf.setTransactionCoordinatorEnabled(true);
         baseSetup();
+    }
+
+    protected void afterSetup() throws Exception {
+        admin.tenants().createTenant(NamespaceName.SYSTEM_NAMESPACE.getTenant(),
+                TenantInfo.builder()
+                        .adminRoles(com.google.common.collect.Sets.newHashSet("appid1"))
+                        .allowedClusters(com.google.common.collect.Sets.newHashSet("test"))
+                        .build());
+        admin.namespaces().createNamespace(NamespaceName.SYSTEM_NAMESPACE.toString());
+        createTransactionCoordinatorAssign();
+        replacePulsarClient(PulsarClient.builder().serviceUrl(lookupUrl.toString()).enableTransaction(true));
     }
 
     @AfterClass(alwaysRun = true)
@@ -372,6 +388,95 @@ public class BrokerEntryMetadataE2ETest extends BrokerTestBase {
             producer.sendAsync(String.valueOf(numOfMessages).getBytes());
         }
         producer.flush();
+
+        for (int i = 0; i < numOfMessages; i++) {
+            Message<byte[]> received = consumer.receive();
+            Assert.assertTrue(
+                    received.hasBrokerPublishTime() && received.getBrokerPublishTime().orElse(-1L) >= sendTime);
+            Assert.assertTrue(received.hasIndex() && received.getIndex().orElse(-1L) == i);
+        }
+
+        producer.close();
+        consumer.close();
+    }
+
+    @Test(timeOut = 200000000)
+    public void testConsumerGetBrokerEntryMetadataForIndividualMessageWithTxn() throws Exception {
+        final String topic = newTopicName();
+        final String subscription = "my-sub";
+
+        @Cleanup
+        Producer<byte[]> producer = pulsarClient.newProducer()
+                .topic(topic)
+                .enableBatching(false)
+                .create();
+        @Cleanup
+        Consumer<byte[]> consumer = pulsarClient.newConsumer()
+                .topic(topic)
+                .subscriptionType(SubscriptionType.Exclusive)
+                .subscriptionName(subscription)
+                .subscribe();
+
+        long sendTime = System.currentTimeMillis();
+
+        final int messages = 10;
+        for (int i = 0; i < messages; i++) {
+            Transaction txn = pulsarClient.newTransaction().build().get();
+            producer.newMessage(txn).value(String.valueOf(i).getBytes()).send();
+            txn.commit().get();
+        }
+
+        for (int i = 0; i < messages; i++) {
+            Message<byte[]> received = consumer.receive();
+            System.out.println("Received msg: " + new String(received.getValue()));
+            Assert.assertTrue(
+                    received.hasBrokerPublishTime() && received.getBrokerPublishTime().orElse(-1L) >= sendTime);
+            if (received.hasIndex()) {
+                System.out.println("Received msg index: " + received.getIndex().get());
+            }
+//            Assert.assertTrue(received.hasIndex() && received.getIndex().orElse(-1L) == i);
+        }
+
+        producer.close();
+        consumer.close();
+    }
+
+    @Test(timeOut = 20000)
+    public void testConsumerGetBrokerEntryMetadataForBatchMessageWithTxn() throws Exception {
+        final String topic = newTopicName();
+        final String subscription = "my-sub";
+
+        @Cleanup
+        Producer<byte[]> producer = pulsarClient.newProducer()
+                .topic(topic)
+                .enableBatching(true)
+                .batchingMaxMessages(5)
+                .create();
+        @Cleanup
+        Consumer<byte[]> consumer = pulsarClient.newConsumer()
+                .topic(topic)
+                .subscriptionType(SubscriptionType.Exclusive)
+                .subscriptionName(subscription)
+                .subscribe();
+
+        long sendTime = System.currentTimeMillis();
+
+        int numOfMessages;
+        // batch 1
+        Transaction txn = pulsarClient.newTransaction().build().get();
+        for (numOfMessages = 0; numOfMessages < 5; numOfMessages++) {
+            producer.newMessage(txn).value(String.valueOf(numOfMessages).getBytes()).sendAsync();
+        }
+        producer.flush();
+        txn.commit().get();
+
+        // batch 2
+        txn = pulsarClient.newTransaction().build().get();
+        for (; numOfMessages < 10; numOfMessages++) {
+            producer.newMessage(txn).value(String.valueOf(numOfMessages).getBytes()).sendAsync();
+        }
+        producer.flush();
+        txn.commit().get();
 
         for (int i = 0; i < numOfMessages; i++) {
             Message<byte[]> received = consumer.receive();

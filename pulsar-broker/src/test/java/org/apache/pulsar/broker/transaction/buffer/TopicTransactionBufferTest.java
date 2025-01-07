@@ -560,19 +560,19 @@ public class TopicTransactionBufferTest extends TransactionTestBase {
         // 2. Test reference count does not change in the method `appendBufferToTxn`.
         // 2.1 Test sending first transaction message, this will take a snapshot.
         ByteBuf byteBuf1 = Unpooled.buffer();
-        topicTransactionBuffer.appendBufferToTxn(new TxnID(1, 1), 1L, byteBuf1)
+        topicTransactionBuffer.appendBufferToTxn(new TxnID(1, 1), 1L, 1, byteBuf1)
                 .get(5, TimeUnit.SECONDS);
         Awaitility.await().untilAsserted(() -> Assert.assertEquals(byteBuf1.refCnt(), 1));
         // 2.2 Test send the second transaction message, this will not take snapshots.
         ByteBuf byteBuf2 = Unpooled.buffer();
-        topicTransactionBuffer.appendBufferToTxn(new TxnID(1, 1), 1L, byteBuf1)
+        topicTransactionBuffer.appendBufferToTxn(new TxnID(1, 1), 1L, 1, byteBuf1)
                 .get(5, TimeUnit.SECONDS);
         Awaitility.await().untilAsserted(() -> Assert.assertEquals(byteBuf2.refCnt(), 1));
         // 2.3 Test sending message failed.
         topicTransactionBuffer.setPublishFuture(FutureUtil.failedFuture(new Exception("fail")));
         ByteBuf byteBuf3 = Unpooled.buffer();
         try {
-            topicTransactionBuffer.appendBufferToTxn(new TxnID(1, 1), 1L, byteBuf1)
+            topicTransactionBuffer.appendBufferToTxn(new TxnID(1, 1), 1L, 1, byteBuf1)
                     .get(5, TimeUnit.SECONDS);
             fail();
         } catch (Exception e) {

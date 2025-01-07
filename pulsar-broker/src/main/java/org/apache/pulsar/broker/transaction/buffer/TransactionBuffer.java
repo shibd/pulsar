@@ -72,7 +72,7 @@ public interface TransactionBuffer {
      * @return a future represents the result of the operation.
      * @throws TransactionException.TransactionSealedException if the transaction has been sealed.
      */
-    CompletableFuture<Position> appendBufferToTxn(TxnID txnId, long sequenceId, ByteBuf buffer);
+    CompletableFuture<Position> appendBufferToTxn(TxnID txnId, long sequenceId, int numberOfMessages, ByteBuf buffer);
 
     /**
      * Open a {@link TransactionBufferReader} to read entries of a given transaction

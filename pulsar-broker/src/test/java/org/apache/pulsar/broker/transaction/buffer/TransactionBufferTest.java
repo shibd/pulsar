@@ -245,6 +245,7 @@ public class TransactionBufferTest {
             buffer.appendBufferToTxn(
                 txnId,
                 sequenceId,
+                1,
                 Unpooled.copiedBuffer("message-" + sequenceId, UTF_8)
             ).join();
         }

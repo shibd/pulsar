@@ -266,6 +266,7 @@ class InMemTransactionBuffer implements TransactionBuffer {
     @Override
     public CompletableFuture<Position> appendBufferToTxn(TxnID txnId,
                                                      long sequenceId,
+                                                     int numberOfMessages,
                                                      ByteBuf buffer) {
         TxnBuffer txnBuffer = getTxnBufferOrCreateIfNotExist(txnId);
 
