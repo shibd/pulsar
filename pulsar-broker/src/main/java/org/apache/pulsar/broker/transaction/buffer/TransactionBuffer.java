@@ -51,6 +51,8 @@ import org.apache.pulsar.common.policies.data.TransactionInBufferStats;
  */
 @Beta
 public interface TransactionBuffer {
+    
+    CompletableFuture<Void> initialize();
 
     /**
      * Return the metadata of a transaction in the buffer.

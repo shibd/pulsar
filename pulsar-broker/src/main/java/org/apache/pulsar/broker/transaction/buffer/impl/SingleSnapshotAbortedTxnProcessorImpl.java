@@ -33,6 +33,7 @@ import org.apache.pulsar.broker.transaction.buffer.metadata.TransactionBufferSna
 import org.apache.pulsar.client.api.transaction.TxnID;
 import org.apache.pulsar.common.naming.TopicName;
 import org.apache.pulsar.common.policies.data.TransactionBufferStats;
+import org.apache.pulsar.common.util.FutureUtil;
 
 @Slf4j
 public class SingleSnapshotAbortedTxnProcessorImpl implements AbortedTxnProcessor {
@@ -54,10 +55,16 @@ public class SingleSnapshotAbortedTxnProcessorImpl implements AbortedTxnProcesso
                 .getTransactionBufferSnapshotServiceFactory()
                 .getTxnBufferSnapshotService().getReferenceWriter(TopicName.get(topic.getName()).getNamespaceObject());
         this.takeSnapshotWriter.getFuture().exceptionally((ex) -> {
-                    log.error("{} Failed to create snapshot writer", topic.getName());
-                    topic.close();
-                    return null;
-                });
+            Throwable e = FutureUtil.unwrapCompletionException(ex);
+            log.error("{} Failed to create snapshot writer {}", topic.getName(), e.getMessage(), e);
+            return null;
+        });
+    }
+
+    @Override
+    public CompletableFuture<Void> initialize() {
+        return this.takeSnapshotWriter.getFuture()
+                .thenCompose(__ -> null);
     }
 
     @Override

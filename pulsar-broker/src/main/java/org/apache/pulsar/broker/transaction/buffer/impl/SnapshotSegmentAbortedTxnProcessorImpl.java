@@ -156,6 +156,12 @@ public class SnapshotSegmentAbortedTxnProcessorImpl implements AbortedTxnProcess
     }
 
     @Override
+    public CompletableFuture<Void> initialize() {
+        return CompletableFuture.allOf(persistentWorker.snapshotSegmentsWriter.getFuture(),
+                persistentWorker.snapshotIndexWriter.getFuture());
+    }
+
+    @Override
     public void putAbortedTxnAndPosition(TxnID txnID, Position position) {
         unsealedTxnIds.add(txnID);
         aborts.put(txnID, txnID);
@@ -491,19 +497,19 @@ public class SnapshotSegmentAbortedTxnProcessorImpl implements AbortedTxnProcess
                     .getTxnBufferSnapshotSegmentService()
                     .getReferenceWriter(TopicName.get(topic.getName()).getNamespaceObject());
             this.snapshotSegmentsWriter.getFuture().exceptionally(ex -> {
-                        log.error("{} Failed to create snapshot index writer", topic.getName());
-                        topic.close();
-                        return null;
-                    });
+                Throwable e = FutureUtil.unwrapCompletionException(ex);
+                log.error("{} Failed to create snapshot index writer {}", topic.getName(), e.getMessage(), e);
+                return null;
+            });
             this.snapshotIndexWriter =  this.topic.getBrokerService().getPulsar()
                     .getTransactionBufferSnapshotServiceFactory()
                     .getTxnBufferSnapshotIndexService()
                     .getReferenceWriter(TopicName.get(topic.getName()).getNamespaceObject());
             this.snapshotIndexWriter.getFuture().exceptionally((ex) -> {
-                        log.error("{} Failed to create snapshot writer", topic.getName());
-                        topic.close();
-                        return null;
-                    });
+                Throwable e = FutureUtil.unwrapCompletionException(ex);
+                log.error("{} Failed to create snapshot writer {}", topic.getName(), e.getMessage(), e);
+                return null;
+            });
         }
 
         public CompletableFuture<Void> appendTask(OperationType operationType,

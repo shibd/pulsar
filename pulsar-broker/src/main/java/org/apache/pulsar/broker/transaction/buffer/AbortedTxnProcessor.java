@@ -31,6 +31,8 @@ public interface AbortedTxnProcessor {
         Segment,
     }
 
+    CompletableFuture<Void> initialize();
+
     /**
      * After the transaction buffer writes a transaction aborted marker to the topic,
      * the transaction buffer will put the aborted txnID and the aborted marker position to AbortedTxnProcessor.
