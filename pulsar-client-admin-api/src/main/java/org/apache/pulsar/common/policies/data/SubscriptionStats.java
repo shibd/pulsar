@@ -163,4 +163,16 @@ public interface SubscriptionStats {
     long getFilterRescheduledMsgCount();
 
     long getDelayedMessageIndexSizeInBytes();
+
+    /**
+     * Total msg count of throttling events due to rate limiting,
+     * incremented each time a message is throttled across broker, topic, and subscription levels.
+     */
+    long getDispatchThrottledMsgs();
+
+    /**
+     * Total bytes of throttling events due to rate limiting,
+     * incremented each time a message is throttled across broker, topic, and subscription levels.
+     */
+    long getDispatchThrottledBytes();
 }

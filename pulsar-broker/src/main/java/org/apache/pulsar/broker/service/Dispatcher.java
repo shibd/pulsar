@@ -177,4 +177,12 @@ public interface Dispatcher {
         return 0;
     }
 
+    default long getDispatchThrottledMsgs() {
+        return 0;
+    }
+
+    default long getDispatchThrottledBytes() {
+        return 0;
+    }
+
 }

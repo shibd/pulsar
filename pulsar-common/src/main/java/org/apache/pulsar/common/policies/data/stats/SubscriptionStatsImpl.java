@@ -168,6 +168,18 @@ public class SubscriptionStatsImpl implements SubscriptionStats {
 
     public long filterRescheduledMsgCount;
 
+    /**
+     * Total msg count of throttling events due to rate limiting,
+     * incremented each time a message is throttled across broker, topic, and subscription levels.
+     */
+    public long dispatchThrottledMsgs;
+
+    /**
+     * Total bytes of throttling events due to rate limiting,
+     * incremented each time a message is throttled across broker, topic, and subscription levels.
+     */
+    public long dispatchThrottledBytes;
+
     public SubscriptionStatsImpl() {
         this.consumers = new ArrayList<>();
         this.consumersAfterMarkDeletePosition = new LinkedHashMap<>();
@@ -208,6 +220,8 @@ public class SubscriptionStatsImpl implements SubscriptionStats {
         filterAcceptedMsgCount = 0;
         filterRejectedMsgCount = 0;
         filterRescheduledMsgCount = 0;
+        dispatchThrottledMsgs = 0;
+        dispatchThrottledBytes = 0;
         bucketDelayedIndexStats.clear();
     }
 
@@ -267,6 +281,8 @@ public class SubscriptionStatsImpl implements SubscriptionStats {
         this.filterAcceptedMsgCount += stats.filterAcceptedMsgCount;
         this.filterRejectedMsgCount += stats.filterRejectedMsgCount;
         this.filterRescheduledMsgCount += stats.filterRescheduledMsgCount;
+        this.dispatchThrottledMsgs += stats.dispatchThrottledMsgs;
+        this.dispatchThrottledBytes += stats.dispatchThrottledBytes;
         stats.bucketDelayedIndexStats.forEach((k, v) -> {
             TopicMetricBean topicMetricBean =
                     this.bucketDelayedIndexStats.computeIfAbsent(k, __ -> new TopicMetricBean());

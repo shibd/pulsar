@@ -1298,6 +1298,8 @@ public class PersistentSubscription extends AbstractSubscription {
             subStats.filterAcceptedMsgCount = dispatcher.getFilterAcceptedMsgCount();
             subStats.filterRejectedMsgCount = dispatcher.getFilterRejectedMsgCount();
             subStats.filterRescheduledMsgCount = dispatcher.getFilterRescheduledMsgCount();
+            subStats.dispatchThrottledMsgs = dispatcher.getDispatchThrottledMsgs();
+            subStats.dispatchThrottledBytes = dispatcher.getDispatchThrottledBytes();
         }
 
         SubType subType = getType();
