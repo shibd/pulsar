@@ -27,6 +27,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.bookkeeper.mledger.Entry;
@@ -68,6 +69,9 @@ public abstract class AbstractBaseDispatcher extends EntryFilterSupport implemen
     private final LongAdder filterAcceptedMsgs = new LongAdder();
     private final LongAdder filterRejectedMsgs = new LongAdder();
     private final LongAdder filterRescheduledMsgs = new LongAdder();
+    private final LongAdder dispatchThrottledMsgs = new LongAdder();
+    private final AtomicLong dispatchThrottledBytes = new AtomicLong();
+
 
     protected AbstractBaseDispatcher(Subscription subscription, ServiceConfiguration serviceConfig) {
         super(subscription);
@@ -371,9 +375,23 @@ public abstract class AbstractBaseDispatcher extends EntryFilterSupport implemen
     protected Pair<Integer, Long> updateMessagesToRead(DispatchRateLimiter dispatchRateLimiter,
                                                        int messagesToRead, long bytesToRead) {
         // update messagesToRead according to available dispatch rate limit.
-        return computeReadLimits(messagesToRead,
+        Pair<Integer, Long> result = computeReadLimits(messagesToRead,
                 (int) dispatchRateLimiter.getAvailableDispatchRateLimitOnMsg(),
                 bytesToRead, dispatchRateLimiter.getAvailableDispatchRateLimitOnByte());
+        if (result.getLeft() < messagesToRead) {
+            dispatchThrottledMsgs.add(messagesToRead - result.getLeft());
+        }
+        if (result.getRight() < bytesToRead) {
+            long increment = bytesToRead - result.getRight();
+            dispatchThrottledBytes.updateAndGet(current -> {
+                // Check if adding the increment would cause an overflow
+                if (Long.MAX_VALUE - current < increment) {
+                    return increment;
+                }
+                return current + increment;
+            });
+        }
+        return result;
     }
 
     protected static Pair<Integer, Long> computeReadLimits(int messagesToRead, int availablePermitsOnMsg,
@@ -428,6 +446,16 @@ public abstract class AbstractBaseDispatcher extends EntryFilterSupport implemen
     @Override
     public long getFilterRescheduledMsgCount() {
         return this.filterRescheduledMsgs.longValue();
+    }
+
+    @Override
+    public long getDispatchThrottledMsgs() {
+        return this.dispatchThrottledMsgs.longValue();
+    }
+
+    @Override
+    public long getDispatchThrottledBytes() {
+        return this.dispatchThrottledBytes.longValue();
     }
 
     protected final void updatePendingBytesToDispatch(long size) {

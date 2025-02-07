@@ -154,6 +154,8 @@ public class AggregatedNamespaceStats {
             subsStats.filterAcceptedMsgCount += as.filterAcceptedMsgCount;
             subsStats.filterRejectedMsgCount += as.filterRejectedMsgCount;
             subsStats.filterRescheduledMsgCount += as.filterRescheduledMsgCount;
+            subsStats.dispatchThrottledMsgs += as.dispatchThrottledMsgs;
+            subsStats.dispatchThrottledBytes += as.dispatchThrottledBytes;
             subsStats.delayedMessageIndexSizeInBytes += as.delayedMessageIndexSizeInBytes;
             as.bucketDelayedIndexStats.forEach((k, v) -> {
                 TopicMetricBean topicMetricBean =
