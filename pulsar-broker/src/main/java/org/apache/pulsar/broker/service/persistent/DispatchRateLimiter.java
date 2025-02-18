@@ -21,6 +21,7 @@ package org.apache.pulsar.broker.service.persistent;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.LongAdder;
 import org.apache.pulsar.broker.ServiceConfiguration;
 import org.apache.pulsar.broker.qos.AsyncTokenBucket;
 import org.apache.pulsar.broker.qos.AsyncTokenBucketBuilder;
@@ -48,6 +49,9 @@ public class DispatchRateLimiter {
     private final BrokerService brokerService;
     private volatile AsyncTokenBucket dispatchRateLimiterOnMessage;
     private volatile AsyncTokenBucket dispatchRateLimiterOnByte;
+
+    private final LongAdder dispatchThrottleMsgCount = new LongAdder();
+    private final LongAdder dispatchThrottleBytesCount = new LongAdder();
 
     public DispatchRateLimiter(PersistentTopic topic, Type type) {
         this(topic, null, type);
@@ -101,11 +105,15 @@ public class DispatchRateLimiter {
     public void consumeDispatchQuota(long numberOfMessages, long byteSize) {
         AsyncTokenBucket localDispatchRateLimiterOnMessage = dispatchRateLimiterOnMessage;
         if (numberOfMessages > 0 && localDispatchRateLimiterOnMessage != null) {
-            localDispatchRateLimiterOnMessage.consumeTokens(numberOfMessages);
+            if (!localDispatchRateLimiterOnMessage.consumeTokensAndCheckIfContainsTokens(numberOfMessages)) {
+                dispatchThrottleMsgCount.increment();
+            }
         }
         AsyncTokenBucket localDispatchRateLimiterOnByte = dispatchRateLimiterOnByte;
         if (byteSize > 0 && localDispatchRateLimiterOnByte != null) {
-            localDispatchRateLimiterOnByte.consumeTokens(byteSize);
+            if (!localDispatchRateLimiterOnByte.consumeTokensAndCheckIfContainsTokens(byteSize)) {
+                dispatchThrottleBytesCount.increment();
+            }
         }
     }
 
@@ -297,6 +305,13 @@ public class DispatchRateLimiter {
         return localDispatchRateLimiterOnByte != null ? localDispatchRateLimiterOnByte.getRate() : -1;
     }
 
+    public long getDispatchThrottleMsgCount() {
+        return dispatchThrottleMsgCount.longValue();
+    }
+
+    public long getDispatchThrottleBytesCount() {
+        return dispatchThrottleBytesCount.longValue();
+    }
 
     public static boolean isDispatchRateEnabled(DispatchRate dispatchRate) {
         return dispatchRate != null && (dispatchRate.getDispatchThrottlingRateInMsg() > 0
