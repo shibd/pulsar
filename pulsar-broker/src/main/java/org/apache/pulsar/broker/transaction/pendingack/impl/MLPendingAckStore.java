@@ -22,6 +22,7 @@ import static org.apache.pulsar.transaction.coordinator.impl.TxnLogBufferedWrite
 import static org.apache.pulsar.transaction.coordinator.impl.TxnLogBufferedWriter.BATCHED_ENTRY_DATA_PREFIX_MAGIC_NUMBER_LEN;
 import static org.apache.pulsar.transaction.coordinator.impl.TxnLogBufferedWriter.BATCHED_ENTRY_DATA_PREFIX_VERSION_LEN;
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Splitter;
 import com.google.common.collect.ComparisonChain;
 import io.github.merlimat.slog.Logger;
 import io.netty.buffer.ByteBuf;
@@ -60,6 +61,7 @@ import org.apache.pulsar.common.allocator.PulsarByteBufAllocator;
 import org.apache.pulsar.common.api.proto.CommandAck.AckType;
 import org.apache.pulsar.common.naming.SystemTopicNames;
 import org.apache.pulsar.common.naming.TopicName;
+import org.apache.pulsar.common.util.Codec;
 import org.apache.pulsar.transaction.coordinator.impl.TxnBatchedPositionImpl;
 import org.apache.pulsar.transaction.coordinator.impl.TxnLogBufferedWriter;
 import org.apache.pulsar.transaction.coordinator.impl.TxnLogBufferedWriterConfig;
@@ -524,6 +526,7 @@ public class MLPendingAckStore implements PendingAckStore {
 
     public static String getTransactionPendingAckStoreSuffix(String originTopicName, String subName) {
         TopicName origin = TopicName.get(originTopicName);
+        String pendingAckSubName = getPendingAckTopicSafeSubscriptionName(subName);
         // Segment topics ("segment://tenant/ns/topic/<hexStart>-<hexEnd>-<segmentId>") cannot
         // host a derived pending-ack topic in the segment domain — the descriptor parser would
         // reject any name with extra dashes appended. Map to a flat persistent topic in the same
@@ -532,9 +535,34 @@ public class MLPendingAckStore implements PendingAckStore {
             return String.format("persistent://%s/%s/%s-%s-%s%s",
                     origin.getTenant(), origin.getNamespacePortion(),
                     origin.getLocalName(), origin.getSegmentDescriptor(),
-                    subName, SystemTopicNames.PENDING_ACK_STORE_SUFFIX);
+                    pendingAckSubName, SystemTopicNames.PENDING_ACK_STORE_SUFFIX);
         }
-        return origin + "-" + subName + SystemTopicNames.PENDING_ACK_STORE_SUFFIX;
+        return origin + "-" + pendingAckSubName + SystemTopicNames.PENDING_ACK_STORE_SUFFIX;
+    }
+
+    private static String getPendingAckTopicSafeSubscriptionName(String subName) {
+        return subName.contains("/") ? Codec.encode(subName) : subName;
+    }
+
+    @VisibleForTesting
+    public static Optional<String> getLegacyV1TransactionPendingAckStorePersistenceName(String originTopicName,
+                                                                                       String subName) {
+        if (!subName.contains("/")) {
+            return Optional.empty();
+        }
+        TopicName origin = TopicName.get(originTopicName);
+        String legacyPendingAckTopicName = origin + "-" + subName + SystemTopicNames.PENDING_ACK_STORE_SUFFIX;
+        List<String> domainParts = Splitter.on("://").limit(2).splitToList(legacyPendingAckTopicName);
+        if (domainParts.size() != 2) {
+            return Optional.empty();
+        }
+        List<String> topicParts = Splitter.on("/").limit(4).splitToList(domainParts.get(1));
+        if (topicParts.size() != 4) {
+            return Optional.empty();
+        }
+        return Optional.of(String.format("%s/%s/%s/%s/%s",
+                topicParts.get(0), topicParts.get(1), topicParts.get(2),
+                domainParts.get(0), Codec.encode(topicParts.get(3))));
     }
 
     public static String getTransactionPendingAckStoreCursorName() {

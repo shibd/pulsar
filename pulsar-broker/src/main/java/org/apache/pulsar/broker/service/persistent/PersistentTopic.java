@@ -1330,40 +1330,57 @@ public class PersistentTopic extends AbstractTopic implements Topic, AddEntryCal
     public CompletableFuture<Void> unsubscribe(String subscriptionName) {
         CompletableFuture<Void> unsubscribeFuture = new CompletableFuture<>();
 
-        TopicName tn = TopicName.get(MLPendingAckStore
-                .getTransactionPendingAckStoreSuffix(topic,
-                        Codec.encode(subscriptionName)));
         if (brokerService.pulsar().getConfiguration().isTransactionCoordinatorEnabled()) {
+            TopicName tn = TopicName.get(MLPendingAckStore
+                    .getTransactionPendingAckStoreSuffix(topic, Codec.encode(subscriptionName)));
+            List<String> pendingAckManagedLedgerNames = new ArrayList<>();
+            pendingAckManagedLedgerNames.add(tn.getPersistenceNamingEncoding());
+            MLPendingAckStore.getLegacyV1TransactionPendingAckStorePersistenceName(topic, subscriptionName)
+                    .ifPresent(pendingAckManagedLedgerNames::add);
             ManagedLedgerConfig managedLedgerConfig = ledger.getConfig();
-                ManagedLedgerFactory managedLedgerFactory = getBrokerService()
-                        .getManagedLedgerFactoryForTopic(tn, managedLedgerConfig.getStorageClassName());
-                managedLedgerFactory.asyncDelete(tn.getPersistenceNamingEncoding(),
-                    CompletableFuture.completedFuture(managedLedgerConfig),
-                    new AsyncCallbacks.DeleteLedgerCallback() {
-                        @Override
-                        public void deleteLedgerComplete(Object ctx) {
-                            asyncDeleteCursorWithClearDelayedMessage(subscriptionName, unsubscribeFuture);
-                        }
-
-                        @Override
-                        public void deleteLedgerFailed(ManagedLedgerException exception, Object ctx) {
-                            if (exception instanceof MetadataNotFoundException) {
-                                asyncDeleteCursorWithClearDelayedMessage(subscriptionName, unsubscribeFuture);
-                                return;
-                            }
-
-                            unsubscribeFuture.completeExceptionally(exception);
-                            log.error()
-                                    .attr("subscription", subscriptionName)
-                                    .exception(exception)
-                                    .log("Error deleting subscription pending ack store");
-                        }
-                    }, null);
+            ManagedLedgerFactory managedLedgerFactory = getBrokerService()
+                    .getManagedLedgerFactoryForTopic(tn, managedLedgerConfig.getStorageClassName());
+            asyncDeletePendingAckManagedLedger(subscriptionName, unsubscribeFuture, managedLedgerFactory,
+                    managedLedgerConfig, pendingAckManagedLedgerNames, 0);
         } else {
             asyncDeleteCursorWithClearDelayedMessage(subscriptionName, unsubscribeFuture);
         }
 
         return unsubscribeFuture;
+    }
+
+    private void asyncDeletePendingAckManagedLedger(String subscriptionName, CompletableFuture<Void> unsubscribeFuture,
+                                                   ManagedLedgerFactory managedLedgerFactory,
+                                                   ManagedLedgerConfig managedLedgerConfig,
+                                                   List<String> pendingAckManagedLedgerNames, int index) {
+        if (index >= pendingAckManagedLedgerNames.size()) {
+            asyncDeleteCursorWithClearDelayedMessage(subscriptionName, unsubscribeFuture);
+            return;
+        }
+        managedLedgerFactory.asyncDelete(pendingAckManagedLedgerNames.get(index),
+                CompletableFuture.completedFuture(managedLedgerConfig),
+                new AsyncCallbacks.DeleteLedgerCallback() {
+                    @Override
+                    public void deleteLedgerComplete(Object ctx) {
+                        asyncDeletePendingAckManagedLedger(subscriptionName, unsubscribeFuture, managedLedgerFactory,
+                                managedLedgerConfig, pendingAckManagedLedgerNames, index + 1);
+                    }
+
+                    @Override
+                    public void deleteLedgerFailed(ManagedLedgerException exception, Object ctx) {
+                        if (exception instanceof MetadataNotFoundException) {
+                            asyncDeletePendingAckManagedLedger(subscriptionName, unsubscribeFuture,
+                                    managedLedgerFactory, managedLedgerConfig, pendingAckManagedLedgerNames, index + 1);
+                            return;
+                        }
+
+                        unsubscribeFuture.completeExceptionally(exception);
+                        log.error()
+                                .attr("subscription", subscriptionName)
+                                .exception(exception)
+                                .log("Error deleting subscription pending ack store");
+                    }
+                }, null);
     }
 
     private void asyncDeleteCursorWithClearDelayedMessage(String subscriptionName,

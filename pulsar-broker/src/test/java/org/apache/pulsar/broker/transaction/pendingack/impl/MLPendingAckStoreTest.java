@@ -27,6 +27,7 @@ import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -34,6 +35,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import lombok.CustomLog;
 import org.apache.bookkeeper.mledger.ManagedCursor;
+import org.apache.bookkeeper.mledger.ManagedLedger;
+import org.apache.bookkeeper.mledger.ManagedLedgerConfig;
+import org.apache.bookkeeper.mledger.ManagedLedgerFactory;
 import org.apache.bookkeeper.mledger.Position;
 import org.apache.bookkeeper.mledger.PositionFactory;
 import org.apache.pulsar.broker.ServiceConfiguration;
@@ -45,6 +49,8 @@ import org.apache.pulsar.broker.transaction.util.LogIndexLagBackoff;
 import org.apache.pulsar.client.api.transaction.TxnID;
 import org.apache.pulsar.common.api.proto.CommandAck;
 import org.apache.pulsar.common.api.proto.CommandSubscribe;
+import org.apache.pulsar.common.naming.SystemTopicNames;
+import org.apache.pulsar.common.naming.TopicName;
 import org.apache.pulsar.common.util.FutureUtil;
 import org.apache.pulsar.transaction.coordinator.impl.TxnLogBufferedWriterConfig;
 import org.awaitility.Awaitility;
@@ -138,6 +144,57 @@ public class MLPendingAckStoreTest extends TransactionTestBase {
         );
         serviceConfiguration.setTransactionPendingAckBatchedWriteEnabled(txnLogBufferedWriterConfig.isBatchEnabled());
         return (MLPendingAckStore) mlPendingAckStoreProvider.newPendingAckStore(persistentSubscriptionMock).get();
+    }
+
+    @Test
+    public void testPendingAckStoreTopicNameWithSlashSubscription() {
+        String originTopic = "persistent://public/default/source-topic";
+        String subName = "public/default/my-function";
+
+        String pendingAckTopic = MLPendingAckStore.getTransactionPendingAckStoreSuffix(originTopic, subName);
+
+        Assert.assertTrue(pendingAckTopic.endsWith(SystemTopicNames.PENDING_ACK_STORE_SUFFIX));
+        Assert.assertNotEquals(pendingAckTopic, originTopic + "-" + subName
+                + SystemTopicNames.PENDING_ACK_STORE_SUFFIX);
+        Assert.assertEquals(TopicName.get(pendingAckTopic).toString(), pendingAckTopic);
+    }
+
+    @Test
+    public void testPendingAckStoreTopicNameWithoutSlashSubscriptionIsUnchanged() {
+        String originTopic = "persistent://public/default/source-topic";
+        String subName = "my-function";
+
+        String pendingAckTopic = MLPendingAckStore.getTransactionPendingAckStoreSuffix(originTopic, subName);
+
+        Assert.assertEquals(pendingAckTopic, originTopic + "-" + subName
+                + SystemTopicNames.PENDING_ACK_STORE_SUFFIX);
+    }
+
+    @Test
+    public void testOpenLegacyPendingAckStoreForSlashSubscriptionWhenItExists() throws Exception {
+        String slashSubName = "public/default/my-function";
+        PersistentTopic persistentTopic = (PersistentTopic) persistentSubscriptionMock.getTopic();
+        PersistentSubscription slashSubscription = (PersistentSubscription) persistentTopic
+                .createSubscription(slashSubName, CommandSubscribe.InitialPosition.Earliest, false, null).get();
+        MLPendingAckStoreProvider pendingAckStoreProvider = new MLPendingAckStoreProvider();
+        String originTopic = persistentTopic.getName();
+        Optional<String> legacyManagedLedgerName = MLPendingAckStore
+                .getLegacyV1TransactionPendingAckStorePersistenceName(originTopic, slashSubName);
+        Assert.assertTrue(legacyManagedLedgerName.isPresent());
+
+        ManagedLedgerConfig managedLedgerConfig = persistentTopic.getManagedLedger().getConfig();
+        managedLedgerConfig.setCreateIfMissing(true);
+        ManagedLedgerFactory managedLedgerFactory = persistentTopic.getBrokerService()
+                .getManagedLedgerFactoryForTopic(TopicName.get(originTopic), managedLedgerConfig.getStorageClassName());
+        ManagedLedger legacyLedger = managedLedgerFactory.open(legacyManagedLedgerName.get(), managedLedgerConfig);
+        legacyLedger.close();
+
+        MLPendingAckStore pendingAckStore =
+                (MLPendingAckStore) pendingAckStoreProvider.newPendingAckStore(slashSubscription).get();
+
+        Assert.assertEquals(pendingAckStore.getManagedLedger().get().getName(), legacyManagedLedgerName.get());
+        Assert.assertTrue(pendingAckStoreProvider.checkInitializedBefore(slashSubscription).get());
+        pendingAckStore.closeAsync().get();
     }
 
     /**
